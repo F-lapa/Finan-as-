@@ -1,4 +1,4 @@
-const CACHE = "financas-smart-v5";
+const CACHE = "financas-smart-v6";
 self.addEventListener("install", (e) => {
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(["./manifest.webmanifest"])));

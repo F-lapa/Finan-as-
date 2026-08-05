@@ -1012,9 +1012,105 @@ let sb=null;
 try{sb=window.supabase.createClient(SB_URL,SB_KEY)}catch(e){console.warn("Supabase init",e)}
 let cloudUser=null;
 const ADMIN_EMAIL="fernandolapa1987@gmail.com";
-const ADMIN_PASS="cavalassa";
+/* Senha do admin NÃO fica em texto puro — só o hash SHA-256 (salt interno) */
+const ADMIN_PASS_SALT="financas-smart-admin-v1";
+const ADMIN_PASS_HASH="cdd03c8969f5b2b6fa6ba95a73655dbff8747328b3e063ac8a4f5977eac436b0";
+const ADMIN_PASS=""; // legado (não usar em texto puro)
 // WhatsApp do admin para avisar pagamento (só números, com DDI 55). Pode alterar no painel.
 var ADMIN_WHATSAPP = localStorage.getItem("fp_admin_whatsapp") || "5548988286005";
+
+/** Hash SHA-256 em hex (Web Crypto) */
+function fpSha256Hex(str){
+  return new Promise(function(resolve){
+    try{
+      if(window.crypto && crypto.subtle && crypto.subtle.digest){
+        crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(str||""))).then(function(buf){
+          var a=new Uint8Array(buf);
+          var hex="";
+          for(var i=0;i<a.length;i++){ var h=a[i].toString(16); hex+=(h.length===1?"0":"")+h; }
+          resolve(hex);
+        }).catch(function(){ resolve(""); });
+      } else {
+        // fallback simples (navegadores muito antigos) — não ideal, mas evita quebra
+        resolve(fpSha256Fallback(String(str||"")));
+      }
+    }catch(e){ resolve(""); }
+  });
+}
+function fpSha256Fallback(str){
+  // FNV-1a 32-bit cascata (só emergência; hash principal é SubtleCrypto)
+  var h=0x811c9dc5;
+  for(var i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,0x01000193); }
+  return ("00000000"+(h>>>0).toString(16)).slice(-8)+"_legacy";
+}
+async function fpAdminPasswordHash(plain){
+  var salt=(typeof ADMIN_PASS_SALT!=="undefined"?ADMIN_PASS_SALT:"financas-smart-admin-v1");
+  return await fpSha256Hex(salt+"|"+String(plain||""));
+}
+function fpGetAdminHashStored(){
+  try{
+    var ov=localStorage.getItem("fp_admin_pass_hash");
+    if(ov && ov.length>=32) return ov;
+  }catch(e){}
+  return (typeof ADMIN_PASS_HASH!=="undefined"?ADMIN_PASS_HASH:"");
+}
+async function fpChangeAdminPassword(cur, n1){
+  var ok=await fpVerifyAdminPassword(cur);
+  if(!ok){
+    // legado texto puro
+    try{
+      var oldPlain=localStorage.getItem("fp_admin_pass_override");
+      if(oldPlain && cur===oldPlain) ok=true;
+    }catch(e){}
+  }
+  if(!ok) return {ok:false, msg:"Senha atual incorreta"};
+  if(!n1 || String(n1).length<8) return {ok:false, msg:"Nova senha do admin: mínimo 8 caracteres"};
+  var nh=await fpAdminPasswordHash(n1);
+  try{
+    localStorage.setItem("fp_admin_pass_hash", nh);
+    localStorage.removeItem("fp_admin_pass_override");
+  }catch(e){}
+  return {ok:true, msg:"Senha do administrador atualizada com segurança"};
+}
+
+async function fpVerifyAdminPassword(plain){
+  var inputHash=await fpAdminPasswordHash(plain);
+  var stored=fpGetAdminHashStored();
+  if(!inputHash || !stored) return false;
+  // comparação em tempo constante aproximado
+  if(inputHash.length!==stored.length) return false;
+  var diff=0;
+  for(var i=0;i<inputHash.length;i++){ diff|=inputHash.charCodeAt(i)^stored.charCodeAt(i); }
+  return diff===0;
+}
+function fpAdminLockKey(){ return "fp_admin_lock_v1"; }
+function fpAdminGetLock(){
+  try{ return JSON.parse(localStorage.getItem(fpAdminLockKey())||"{}")||{}; }catch(e){ return {}; }
+}
+function fpAdminSaveLock(o){
+  try{ localStorage.setItem(fpAdminLockKey(), JSON.stringify(o||{})); }catch(e){}
+}
+function fpAdminIsLocked(){
+  var L=fpAdminGetLock();
+  var until=Number(L.until||0);
+  if(until && Date.now()<until) return {locked:true, remainMs: until-Date.now(), fails:Number(L.fails||0)};
+  return {locked:false, remainMs:0, fails:Number(L.fails||0)};
+}
+function fpAdminRegisterFail(){
+  var L=fpAdminGetLock();
+  var fails=Number(L.fails||0)+1;
+  var until=0;
+  // 5 falhas = 2 min; 8 = 10 min; 12+ = 30 min
+  if(fails>=12) until=Date.now()+30*60*1000;
+  else if(fails>=8) until=Date.now()+10*60*1000;
+  else if(fails>=5) until=Date.now()+2*60*1000;
+  fpAdminSaveLock({fails:fails, until:until, last:Date.now()});
+  return {fails:fails, until:until};
+}
+function fpAdminRegisterSuccess(){
+  fpAdminSaveLock({fails:0, until:0, last:Date.now()});
+}
+
 try{ if(!localStorage.getItem("fp_deleted_clients_cleared_v2")){ localStorage.removeItem("fp_deleted_clients"); localStorage.setItem("fp_deleted_clients_cleared_v2","1"); } }catch(e){}
 
 
@@ -2185,7 +2281,38 @@ async function doLogin(){
   err.classList.add("hidden");
   if(!rawLogin||!pass){err.textContent="Preencha login e senha.";err.classList.remove("hidden");return}
   var loginKey=rawLogin.toLowerCase();
-  if(loginKey===ADMIN_EMAIL.toLowerCase()&&(pass===ADMIN_PASS||pass===(localStorage.getItem("fp_admin_pass_override")||ADMIN_PASS))){
+  // Admin: senha só por hash SHA-256 + bloqueio após falhas
+  if(loginKey===ADMIN_EMAIL.toLowerCase()){
+    var lock=fpAdminIsLocked();
+    if(lock.locked){
+      var min=Math.max(1, Math.ceil(lock.remainMs/60000));
+      err.textContent="Admin bloqueado por segurança. Tente em "+min+" min.";
+      err.classList.remove("hidden"); setAuthStatus(""); return;
+    }
+    var okAdmin=false;
+    try{ okAdmin=await fpVerifyAdminPassword(pass); }catch(e){ okAdmin=false; }
+    // migração: override antigo em texto puro → hash
+    if(!okAdmin){
+      try{
+        var oldPlain=localStorage.getItem("fp_admin_pass_override");
+        if(oldPlain && pass===oldPlain){
+          var nh=await fpAdminPasswordHash(pass);
+          localStorage.setItem("fp_admin_pass_hash", nh);
+          localStorage.removeItem("fp_admin_pass_override");
+          okAdmin=true;
+        }
+      }catch(e){}
+    }
+    if(!okAdmin){
+      var f=fpAdminRegisterFail();
+      if(f.until){
+        err.textContent="Senha incorreta. Admin bloqueado temporariamente.";
+      } else {
+        err.textContent="Senha admin incorreta. Tentativas: "+f.fails+"/5";
+      }
+      err.classList.remove("hidden"); setAuthStatus(""); return;
+    }
+    fpAdminRegisterSuccess();
     localStorage.setItem("fp_currentUser",ADMIN_EMAIL);
     if(sb){
       setAuthStatus("Entrando como Master...");
@@ -3986,14 +4113,14 @@ function submitChangePasswordModal(){
     if(!n1 || n1.length<6){ showErr("Nova senha precisa ter no mínimo 6 caracteres"); return; }
     if(n1!==n2){ showErr("A confirmação não confere com a nova senha"); return; }
 
-    // Admin master
+    // Admin master (hash seguro)
     if(typeof isAdmin==="function" && isAdmin()){
-      var master=(typeof ADMIN_PASS!=="undefined"?ADMIN_PASS:"cavalassa");
-      try{ var ov=localStorage.getItem("fp_admin_pass_override"); if(ov) master=ov; }catch(e){}
-      if(cur!==master){ showErr("Senha atual incorreta"); return; }
-      try{ localStorage.setItem("fp_admin_pass_override", n1); }catch(e){}
-      if(typeof toast==="function") toast("Senha do administrador atualizada","success");
-      closeChangePasswordModal();
+      if(String(n1).length<8){ showErr("Nova senha do admin: mínimo 8 caracteres"); return; }
+      fpChangeAdminPassword(cur, n1).then(function(r){
+        if(!r.ok){ showErr(r.msg); return; }
+        if(typeof toast==="function") toast(r.msg,"success");
+        closeChangePasswordModal();
+      });
       return;
     }
 
@@ -4054,14 +4181,20 @@ function changeUserPassword(){
     if(!n1 || n1.length < 6){ toast("Nova senha precisa ter no mínimo 6 caracteres","error"); return; }
     if(n1 !== n2){ toast("A confirmação não confere com a nova senha","error"); return; }
 
-    // Admin master (senha no código + localStorage override)
+    // Admin master (hash)
     if(typeof isAdmin==="function" && isAdmin()){
-      var master = (typeof ADMIN_PASS!=="undefined"?ADMIN_PASS:"cavalassa");
-      try{
-        var ov = localStorage.getItem("fp_admin_pass_override");
-        if(ov) master = ov;
-      }catch(e){}
-      if(cur !== master){ toast("Senha atual incorreta","error"); return; }
+      fpChangeAdminPassword(cur, n1).then(function(r){
+        if(!r.ok){ toast(r.msg,"error"); return; }
+        toast(r.msg,"success");
+        try{
+          document.getElementById("setPassCurrent").value="";
+          document.getElementById("setPassNew").value="";
+          document.getElementById("setPassNew2").value="";
+        }catch(e){}
+      });
+      return;
+    }
+
       try{ localStorage.setItem("fp_admin_pass_override", n1); }catch(e){}
       toast("Senha do administrador atualizada neste aparelho","success");
       try{
@@ -5420,7 +5553,7 @@ if("serviceWorker" in navigator){
     navigator.serviceWorker.getRegistrations().then(function(regs){
       return Promise.all(regs.map(function(r){ return r.unregister(); }));
     }).then(function(){
-      return navigator.serviceWorker.register("./sw.js?v=7");
+      return navigator.serviceWorker.register("./sw.js?v=8");
     }).catch(function(){});
   });
 }

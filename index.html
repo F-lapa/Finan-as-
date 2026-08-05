@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" class="dark">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=5, viewport-fit=cover"/>
@@ -212,9 +212,63 @@ main .p-4,main .p-6,main{min-width:0}
 .fp-fab:active{transform:scale(.94)}
 .fp-fab.hidden-fab{display:none!important}
 @media(min-width:1024px){.fp-fab{right:28px;bottom:28px}}
+
+html.dark body, body{background:#020617!important;color:#e2e8f0}
+html.dark #loginScreen{background:transparent}
+#loginScreen .glass, html.dark .glass{
+  background:rgba(15,23,42,.85)!important;
+  border-color:rgba(51,65,85,.7)!important;
+}
+
 </style>
+<script>
+(function(){
+  try{
+    // Tema escuro por padrão (pode mudar em Configurações)
+    var t = localStorage.getItem("theme");
+    if(t !== "light"){
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme","dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }catch(e){
+    document.documentElement.classList.add("dark");
+  }
+})();
+</script>
 </head>
-<body class="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen overflow-x-hidden">
+<body class="bg-slate-950 text-slate-100 min-h-screen overflow-x-hidden">
+
+<div id="splashScreen" class="fp-soft-splash" aria-hidden="true">
+  <div class="fp-soft-splash-inner">
+    <div class="fp-soft-logo">$</div>
+    <p class="fp-soft-title">Finanças Smart</p>
+    <p class="fp-soft-sub">Controle inteligente</p>
+  </div>
+</div>
+<style>
+.fp-soft-splash{
+  position:fixed;inset:0;z-index:9999;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(160deg,#1e1b4b 0%,#312e81 40%,#4c1d95 100%);
+  animation: fpSplashOut 0.5s ease 1.1s forwards;
+  pointer-events:none;
+}
+.fp-soft-splash-inner{text-align:center;color:#fff}
+.fp-soft-logo{
+  width:72px;height:72px;margin:0 auto 12px;border-radius:18px;
+  background:#0f172a;display:flex;align-items:center;justify-content:center;
+  font-size:32px;font-weight:800;color:#34d399;
+  box-shadow:0 12px 40px rgba(0,0,0,.35);
+}
+.fp-soft-title{font-size:1.35rem;font-weight:800;margin:0}
+.fp-soft-sub{font-size:.85rem;opacity:.85;margin:.35rem 0 0}
+@keyframes fpSplashOut{
+  to{opacity:0;visibility:hidden}
+}
+</style>
+
 <div id="toastContainer" class="fixed top-4 right-4 z-[100] space-y-2"></div>
 
 <div id="loginScreen" class="min-h-screen flex items-center justify-center p-4 sm:p-6 relative">
@@ -2909,7 +2963,17 @@ function deleteRecurring(id){if(!confirm("Remover?"))return;RC=RC.filter(r=>r.id
 function updateRecCategories(){const type=document.getElementById("recType").value;document.getElementById("recCategory").innerHTML=C.filter(c=>c.type===type).map(c=>"<option value=\""+c.id+"\">"+c.name+"</option>").join("")}
 function renderRecurring(){updateRecCategories();const list=document.getElementById("recurringList");if(!RC.length){list.innerHTML="<div class=\"text-center text-slate-400 py-8 text-sm\">Nenhuma recorrência</div>";return}list.innerHTML=RC.map(r=>{const cat=C.find(c=>c.id===r.categoryId),inc=r.type==="receita";return "<div class=\"bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 flex items-center gap-3 "+(r.active?"":"opacity-50")+"\"><div class=\"w-10 h-10 rounded-xl flex items-center justify-center "+(inc?"bg-emerald-100 dark:bg-emerald-900/30":"bg-red-100 dark:bg-red-900/30")+"\"><i class=\"fas fa-sync-alt text-sm "+(inc?"text-emerald-600":"text-red-500")+"\"></i></div><div class=\"flex-1 min-w-0\"><p class=\"font-medium text-sm\">"+esc(r.description)+"</p><p class=\"text-xs text-slate-400\">Dia "+r.day+" · "+(cat?cat.name:"")+" · "+fm(r.amount)+"</p></div><button onclick=\"toggleRecurring('"+r.id+"')\" class=\"text-xs px-2 py-1 rounded-lg "+(r.active?"bg-emerald-100 text-emerald-700":"bg-slate-100 text-slate-500")+"\">"+(r.active?"Ativa":"Pausada")+"</button> <button onclick=\"deleteRecurring('"+r.id+"')\" class=\"p-1.5 text-slate-400 hover:text-red-500\"><i class=\"fas fa-trash text-xs\"></i></button></div>"}).join("")}
 function generateInsights(){const box=document.getElementById("insightsBox"),now=new Date();const tm=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");const ld=new Date(now.getFullYear(),now.getMonth()-1,1);const lm=ld.getFullYear()+"-"+String(ld.getMonth()+1).padStart(2,"0");const thisExp=T.filter(t=>t.type==="despesa"&&mk(t.date)===tm);const lastExp=T.filter(t=>t.type==="despesa"&&mk(t.date)===lm);const thisInc=T.filter(t=>t.type==="receita"&&mk(t.date)===tm);const thisTotal=thisExp.reduce((s,t)=>s+t.amount,0),lastTotal=lastExp.reduce((s,t)=>s+t.amount,0),thisIncTotal=thisInc.reduce((s,t)=>s+t.amount,0);const insights=[];const day=now.getDate(),dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();let fExp=thisTotal;if(day>=3)fExp=(thisTotal/day)*dim;RC.forEach(r=>{if(!r.active||r.type!=="despesa")return;const ds=tm+"-"+String(r.day).padStart(2,"0");if(ds>today()&&!T.some(t=>t.recurringId===r.id&&mk(t.date)===tm))fExp+=r.amount});let fInc=thisIncTotal;RC.forEach(r=>{if(!r.active||r.type!=="receita")return;const ds=tm+"-"+String(r.day).padStart(2,"0");if(ds>today()&&!T.some(t=>t.recurringId===r.id&&mk(t.date)===tm))fInc+=r.amount});const fb=fInc-fExp;document.getElementById("cardForecast").textContent=fm(fb);document.getElementById("cardForecast").className="text-2xl font-bold"+(fb<0?" text-red-500":"");document.getElementById("cardForecastHint").textContent="Receitas ~"+fm(fInc)+" · Despesas ~"+fm(fExp);if(lastTotal>0){const pct=((thisTotal-lastTotal)/lastTotal*100);if(Math.abs(pct)>=5)insights.push({icon:pct>0?"fa-arrow-trend-up":"fa-arrow-trend-down",color:pct>0?"text-red-500":"text-emerald-500",bg:pct>0?"bg-red-50 dark:bg-red-900/20":"bg-emerald-50 dark:bg-emerald-900/20",text:pct>0?"Você gastou "+Math.abs(pct).toFixed(0)+"% a mais que no mês passado":"Você economizou "+Math.abs(pct).toFixed(0)+"% vs mês passado"})}const byCat={};thisExp.forEach(t=>{byCat[t.categoryId]=(byCat[t.categoryId]||0)+t.amount});const sorted=Object.keys(byCat).sort((a,b)=>byCat[b]-byCat[a]);if(sorted.length&&thisTotal>0){const top=C.find(c=>c.id===sorted[0]);insights.push({icon:"fa-chart-pie",color:"text-violet-500",bg:"bg-violet-50 dark:bg-violet-900/20",text:(top?top.name:"Outros")+" = "+(byCat[sorted[0]]/thisTotal*100).toFixed(0)+"% das despesas ("+fm(byCat[sorted[0]])+")"})}thisExp.forEach(t=>{const same=thisExp.filter(x=>x.categoryId===t.categoryId&&x.id!==t.id);const avg=same.length?same.reduce((s,x)=>s+x.amount,0)/same.length:0;if(avg>0&&t.amount>avg*2.5&&t.amount>100){const cat=C.find(c=>c.id===t.categoryId);insights.push({icon:"fa-exclamation-triangle",color:"text-amber-500",bg:"bg-amber-50 dark:bg-amber-900/20",text:"Gasto atípico: "+esc(t.description)+" ("+fm(t.amount)+") em "+(cat?cat.name:"")})}});Object.keys(L).forEach(cid=>{const spent=thisExp.filter(t=>t.categoryId===cid).reduce((s,t)=>s+t.amount,0);const lim=L[cid],cat=C.find(c=>c.id===cid);if(spent>=lim*0.8){const over=spent>lim;insights.push({icon:over?"fa-exclamation-triangle":"fa-exclamation-circle",color:over?"text-red-500":"text-amber-500",bg:over?"bg-red-50 dark:bg-red-900/20":"bg-amber-50 dark:bg-amber-900/20",text:over?"Limite de "+(cat?cat.name:"")+" ultrapassado! "+fm(spent)+" / "+fm(lim):(cat?cat.name:"")+" em "+Math.round(spent/lim*100)+"% do limite"})}});if(day>=3&&thisTotal>0)insights.push({icon:"fa-calendar-day",color:"text-indigo-500",bg:"bg-indigo-50 dark:bg-indigo-900/20",text:"Média "+fm(thisTotal/day)+"/dia · projeção de gastos: "+fm(fExp)});const up=R.filter(r=>{const d=new Date();d.setDate(d.getDate()+7);return r.date>=today()&&r.date<=d.toISOString().slice(0,10)});if(up.length)insights.push({icon:"fa-bell",color:"text-amber-500",bg:"bg-amber-50 dark:bg-amber-900/20",text:up.length+" lembrete(s) nos próximos 7 dias"});if(!insights.length){box.innerHTML="";return}box.innerHTML=insights.slice(0,6).map(i=>"<div class=\"insight-card flex items-start gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 "+i.bg+"\"><i class=\"fas "+i.icon+" "+i.color+" mt-0.5\"></i><p class=\"text-sm leading-snug\">"+i.text+"</p></div>").join("")}
-function applyTheme(){const th=localStorage.getItem("theme");const dark=th==="dark"||(!th&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",dark);document.getElementById("themeIcon").className=dark?"fas fa-sun":"fas fa-moon"}
+function applyTheme(){
+  try{
+    var t=localStorage.getItem("theme");
+    if(t==="light"){
+      document.documentElement.classList.remove("dark");
+    } else {
+      document.documentElement.classList.add("dark");
+      if(t!=="light") try{localStorage.setItem("theme","dark")}catch(e){}
+    }
+  }catch(e){ document.documentElement.classList.add("dark"); }
+}
 function toggleTheme(){const dark=document.documentElement.classList.toggle("dark");localStorage.setItem("theme",dark?"dark":"light");document.getElementById("themeIcon").className=dark?"fas fa-sun":"fas fa-moon";if(!document.getElementById("section-dashboard").classList.contains("hidden"))renderDashboard();if(!document.getElementById("section-charts").classList.contains("hidden"))renderCharts()}
 function setPrimaryColor(c){document.documentElement.style.setProperty("--primary",c);document.documentElement.style.setProperty("--primary-hover",c);localStorage.setItem("fp_primaryColor",c);toast("Cor atualizada")}
 function toggleSidebar(){const s=document.getElementById("sidebar"),o=document.getElementById("sidebarOverlay");const open=!s.classList.contains("-translate-x-full");s.classList.toggle("-translate-x-full",open);o.classList.toggle("hidden",open)}
@@ -5224,8 +5288,12 @@ try{
     }catch(e){}
   }
   try{
-    if(localStorage.getItem("theme")==="dark"||(!localStorage.getItem("theme")&&window.matchMedia("(prefers-color-scheme: dark)").matches))
+    if(localStorage.getItem("theme")!=="light"){
       document.documentElement.classList.add("dark");
+      try{ localStorage.setItem("theme","dark"); }catch(e){}
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
   }catch(e){}
 
   // Sempre começa no login; só tenta sessão salva com proteção total
@@ -5867,15 +5935,14 @@ function startFsTickerLoop(){
 
 <script>
 if("serviceWorker" in navigator){
+  /* temporário: desregistra SW para evitar cache quebrado */
   window.addEventListener("load", function(){
-    caches.keys().then(function(keys){
-      return Promise.all(keys.map(function(k){ return caches.delete(k); }));
-    }).catch(function(){});
-    navigator.serviceWorker.getRegistrations().then(function(regs){
-      return Promise.all(regs.map(function(r){ return r.unregister(); }));
-    }).then(function(){
-      return navigator.serviceWorker.register("./sw.js?v=11");
-    }).catch(function(){});
+    try{
+      caches.keys().then(function(keys){ keys.forEach(function(k){ caches.delete(k); }); });
+      navigator.serviceWorker.getRegistrations().then(function(regs){
+        regs.forEach(function(r){ r.unregister(); });
+      });
+    }catch(e){}
   });
 }
 window.addEventListener("error", function(ev){

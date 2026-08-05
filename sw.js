@@ -1,26 +1,22 @@
-const CACHE = "financas-smart-v6";
+const CACHE = "financas-smart-v10";
 self.addEventListener("install", (e) => {
   self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(["./manifest.webmanifest"])));
 });
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+      Promise.all(keys.map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });
 self.addEventListener("fetch", (e) => {
   const req = e.request;
-  const url = new URL(req.url);
-  // HTML sempre da rede (não ficar preso em versão antiga)
-  if (req.mode === "navigate" || url.pathname.endsWith(".html") || url.pathname.endsWith("/")) {
+  // sempre rede para HTML / navegação
+  if (req.mode === "navigate" || (req.headers.get("accept") || "").includes("text/html")) {
     e.respondWith(
-      fetch(req).then((res) => res).catch(() => caches.match("./index.html"))
+      fetch(req).catch(() => caches.match(req))
     );
     return;
   }
-  e.respondWith(
-    caches.match(req).then((r) => r || fetch(req))
-  );
+  e.respondWith(fetch(req).catch(() => caches.match(req)));
 });

@@ -153,40 +153,40 @@ main .p-4,main .p-6,main{min-width:0}
 .welcome-name{animation:welcomeIn .7s cubic-bezier(.22,1,.36,1) .05s both}
 @keyframes welcomeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 
-/* ===== Tour de boas-vindas (aula guiada) ===== */
-#fsTourRoot{position:fixed;inset:0;z-index:220;pointer-events:none}
-#fsTourRoot.fs-tour-on{pointer-events:auto}
-#fsTourBackdrop{position:absolute;inset:0;background:rgba(15,23,42,.72);backdrop-filter:blur(3px);opacity:0;transition:opacity .35s ease}
-#fsTourRoot.fs-tour-on #fsTourBackdrop{opacity:1}
-#fsTourSpot{position:absolute;border-radius:16px;box-shadow:0 0 0 9999px rgba(15,23,42,.72),0 0 0 4px rgba(99,102,241,.95),0 12px 40px rgba(99,102,241,.35);transition:all .35s cubic-bezier(.22,1,.36,1);pointer-events:none;opacity:0}
-#fsTourRoot.fs-tour-spot #fsTourSpot{opacity:1}
-#fsTourCard{position:absolute;width:min(360px,calc(100vw - 28px));background:#fff;color:#0f172a;border-radius:1.25rem;padding:1.15rem 1.2rem 1rem;box-shadow:0 24px 60px rgba(15,23,42,.35);z-index:2;opacity:0;transform:translateY(10px);transition:opacity .3s ease,transform .3s ease;pointer-events:auto}
-.dark #fsTourCard{background:#0f172a;color:#f1f5f9;border:1px solid rgba(51,65,85,.9)}
-#fsTourRoot.fs-tour-on #fsTourCard{opacity:1;transform:translateY(0)}
-.fs-tour-badge{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#6366f1;background:rgba(99,102,241,.12);padding:.3rem .55rem;border-radius:999px}
-.dark .fs-tour-badge{color:#a5b4fc;background:rgba(99,102,241,.22)}
-.fs-tour-progress{display:flex;gap:5px;margin:10px 0 12px}
-.fs-tour-dot{height:4px;flex:1;border-radius:99px;background:rgba(148,163,184,.35)}
-.fs-tour-dot.on{background:linear-gradient(90deg,#6366f1,#8b5cf6)}
-.fs-tour-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:14px}
-.fs-tour-btn{border:0;cursor:pointer;font-weight:700;font-size:13px;border-radius:.85rem;padding:.65rem 1rem;transition:transform .15s,box-shadow .15s}
-.fs-tour-btn:active{transform:scale(.98)}
-.fs-tour-btn-primary{background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;box-shadow:0 8px 22px rgba(99,102,241,.35)}
-.fs-tour-btn-ghost{background:transparent;color:#64748b}
-.dark .fs-tour-btn-ghost{color:#94a3b8}
-.fs-tour-btn-skip{background:transparent;color:#94a3b8;font-size:12px;padding:.4rem .5rem}
-#fsTourWelcome{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:1rem;z-index:3}
-.fs-tour-welcome-card{width:min(420px,100%);background:linear-gradient(160deg,#4f46e5 0%,#7c3aed 55%,#312e81 100%);color:#fff;border-radius:1.5rem;padding:1.75rem 1.5rem 1.4rem;box-shadow:0 30px 80px rgba(49,46,129,.55);text-align:center;animation:welcomeIn .5s cubic-bezier(.22,1,.36,1)}
-.fs-tour-welcome-card .icon-wrap{width:72px;height:72px;margin:0 auto 1rem;border-radius:1.35rem;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:1.75rem;backdrop-filter:blur(8px)}
-.fs-tour-welcome-card h2{font-size:1.45rem;font-weight:800;margin:0 0 .5rem;letter-spacing:-.02em}
-.fs-tour-welcome-card p{margin:0;font-size:.9rem;line-height:1.5;color:rgba(255,255,255,.9)}
-.fs-tour-welcome-steps{text-align:left;margin:1.15rem 0 1.25rem;display:grid;gap:.55rem}
-.fs-tour-welcome-steps div{display:flex;gap:.65rem;align-items:flex-start;font-size:.8rem;color:rgba(255,255,255,.92)}
-.fs-tour-welcome-steps span{width:22px;height:22px;border-radius:999px;background:rgba(255,255,255,.2);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0}
-.fs-tour-hl{outline:none!important}
-@media (max-width:640px){
-  #fsTourCard{width:calc(100vw - 20px);left:10px!important;right:10px;max-width:none}
-}
+/* ===== Onboarding profissional (modal) ===== */
+#fsOnboard{position:fixed;inset:0;z-index:230;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(15,23,42,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#fsOnboard.open{display:flex}
+#fsOnboard .ob-card{width:min(440px,100%);background:#fff;border-radius:24px;box-shadow:0 25px 80px rgba(15,23,42,.35);overflow:hidden;animation:obIn .35s cubic-bezier(.22,1,.36,1)}
+.dark #fsOnboard .ob-card{background:#0f172a;border:1px solid rgba(51,65,85,.8)}
+@keyframes obIn{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+#fsOnboard .ob-top{background:linear-gradient(135deg,#4f46e5,#7c3aed 55%,#6366f1);padding:22px 22px 18px;color:#fff;position:relative}
+#fsOnboard .ob-top .ob-close{position:absolute;top:12px;right:12px;width:34px;height:34px;border:0;border-radius:10px;background:rgba(255,255,255,.15);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center}
+#fsOnboard .ob-icon{width:52px;height:52px;border-radius:16px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:12px}
+#fsOnboard .ob-kicker{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;opacity:.85;margin:0 0 6px}
+#fsOnboard .ob-title{font-size:1.25rem;font-weight:800;margin:0;letter-spacing:-.02em;line-height:1.25}
+#fsOnboard .ob-body{padding:20px 22px 8px}
+#fsOnboard .ob-text{font-size:14px;line-height:1.55;color:#475569;margin:0 0 14px}
+.dark #fsOnboard .ob-text{color:#cbd5e1}
+#fsOnboard .ob-tips{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+#fsOnboard .ob-tips li{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#334155;line-height:1.4}
+.dark #fsOnboard .ob-tips li{color:#e2e8f0}
+#fsOnboard .ob-tips i{color:#6366f1;margin-top:2px;width:16px;text-align:center;flex-shrink:0}
+#fsOnboard .ob-mock{margin-top:14px;border-radius:14px;border:1px solid rgba(148,163,184,.25);background:#f8fafc;padding:12px;font-size:12px}
+.dark #fsOnboard .ob-mock{background:#1e293b;border-color:rgba(51,65,85,.8);color:#e2e8f0}
+#fsOnboard .ob-mock .row{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px dashed rgba(148,163,184,.25)}
+#fsOnboard .ob-mock .row:last-child{border-bottom:0}
+#fsOnboard .ob-foot{padding:12px 22px 20px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+#fsOnboard .ob-progress{display:flex;gap:6px;flex:1}
+#fsOnboard .ob-progress span{height:4px;flex:1;border-radius:99px;background:rgba(148,163,184,.3)}
+#fsOnboard .ob-progress span.on{background:linear-gradient(90deg,#6366f1,#8b5cf6)}
+#fsOnboard .ob-actions{display:flex;gap:8px;align-items:center}
+#fsOnboard .ob-btn{border:0;cursor:pointer;font-weight:700;font-size:13px;border-radius:12px;padding:10px 16px;transition:transform .15s,opacity .15s}
+#fsOnboard .ob-btn:active{transform:scale(.98)}
+#fsOnboard .ob-btn-primary{background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;box-shadow:0 8px 20px rgba(99,102,241,.3)}
+#fsOnboard .ob-btn-ghost{background:transparent;color:#64748b}
+.dark #fsOnboard .ob-btn-ghost{color:#94a3b8}
+#fsOnboard .ob-btn-text{background:transparent;color:#94a3b8;font-size:12px;padding:8px 10px}
+
 
 .voice-listening{animation:voicePulse 1.1s ease-in-out infinite;border-color:#ef4444!important;color:#ef4444!important;background:rgba(239,68,68,.08)!important}
 @keyframes voicePulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.45)}50%{box-shadow:0 0 0 10px rgba(239,68,68,0)}}
@@ -251,37 +251,26 @@ main .p-4,main .p-6,main{min-width:0}
 </div>
 <div id="toastContainer" class="fixed top-4 right-4 z-[100] space-y-2"></div>
 
-<!-- Tour de boas-vindas / aula guiada -->
-<div id="fsTourRoot" aria-live="polite" aria-hidden="true">
-  <div id="fsTourBackdrop"></div>
-  <div id="fsTourSpot"></div>
-  <div id="fsTourWelcome" class="hidden">
-    <div class="fs-tour-welcome-card">
-      <div class="icon-wrap"><i class="fas fa-graduation-cap"></i></div>
-      <h2 id="fsTourWelcomeTitle">Bem-vindo ao Finanças Smart</h2>
-      <p id="fsTourWelcomeText">Em poucos passos você aprende a controlar receitas, despesas e metas — sem planilha complicada.</p>
-      <div class="fs-tour-welcome-steps">
-        <div><span>1</span><div>Ver seu saldo e o resumo do mês</div></div>
-        <div><span>2</span><div>Lançar gastos com texto ou voz</div></div>
-        <div><span>3</span><div>Usar o menu, limites e relatórios</div></div>
-      </div>
-      <button type="button" class="fs-tour-btn fs-tour-btn-primary w-full" style="width:100%" onclick="fsTourStartLesson()">Começar a aula <i class="fas fa-arrow-right ml-1"></i></button>
-      <button type="button" class="fs-tour-btn fs-tour-btn-skip mt-2" style="width:100%;color:rgba(255,255,255,.75)" onclick="fsTourSkipAll()">Pular por agora</button>
+<!-- Onboarding profissional -->
+<div id="fsOnboard" role="dialog" aria-modal="true" aria-labelledby="obTitle" aria-hidden="true">
+  <div class="ob-card">
+    <div class="ob-top">
+      <button type="button" class="ob-close" onclick="fsOnboardSkip()" aria-label="Fechar"><i class="fas fa-times"></i></button>
+      <div class="ob-icon" id="obIcon"><i class="fas fa-sparkles"></i></div>
+      <p class="ob-kicker" id="obKicker">Primeiros passos</p>
+      <h2 class="ob-title" id="obTitle">Bem-vindo</h2>
     </div>
-  </div>
-  <div id="fsTourCard" class="hidden" role="dialog" aria-modal="true">
-    <div class="flex items-start justify-between gap-2">
-      <span class="fs-tour-badge"><i class="fas fa-chalkboard-teacher"></i> Aula guiada</span>
-      <button type="button" class="fs-tour-btn-skip" onclick="fsTourSkipAll()" title="Pular aula"><i class="fas fa-times"></i></button>
+    <div class="ob-body">
+      <p class="ob-text" id="obText"></p>
+      <ul class="ob-tips" id="obTips"></ul>
+      <div class="ob-mock" id="obMock" style="display:none"></div>
     </div>
-    <div class="fs-tour-progress" id="fsTourProgress"></div>
-    <h3 id="fsTourTitle" class="text-base font-extrabold m-0 leading-snug"></h3>
-    <p id="fsTourBody" class="text-sm text-slate-600 dark:text-slate-300 mt-2 mb-0 leading-relaxed"></p>
-    <div class="fs-tour-actions">
-      <button type="button" class="fs-tour-btn fs-tour-btn-ghost" id="fsTourBtnBack" onclick="fsTourPrev()">Voltar</button>
-      <div class="flex items-center gap-2">
-        <button type="button" class="fs-tour-btn fs-tour-btn-ghost" id="fsTourBtnSkip" onclick="fsTourSkipAll()">Pular</button>
-        <button type="button" class="fs-tour-btn fs-tour-btn-primary" id="fsTourBtnNext" onclick="fsTourNext()">Próximo</button>
+    <div class="ob-foot">
+      <div class="ob-progress" id="obProgress" aria-hidden="true"></div>
+      <div class="ob-actions">
+        <button type="button" class="ob-btn ob-btn-text" id="obBtnSkip" onclick="fsOnboardSkip()">Pular</button>
+        <button type="button" class="ob-btn ob-btn-ghost" id="obBtnBack" onclick="fsOnboardPrev()" style="display:none">Voltar</button>
+        <button type="button" class="ob-btn ob-btn-primary" id="obBtnNext" onclick="fsOnboardNext()">Continuar</button>
       </div>
     </div>
   </div>
@@ -413,14 +402,14 @@ main .p-4,main .p-6,main{min-width:0}
 
 <div id="onboardBanner" class="hidden rounded-2xl p-4 border border-indigo-200/60 dark:border-indigo-800/50 bg-gradient-to-r from-indigo-50/90 to-violet-50/80 dark:from-indigo-950/40 dark:to-violet-950/30 mb-2">
 <div class="flex items-start gap-3">
-<div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white shrink-0"><i class="fas fa-graduation-cap"></i></div>
-<div class="flex-1">
-<p class="font-bold text-sm">Quer um tour rápido?</p>
-<p class="text-xs text-slate-500 mt-0.5">Uma aula de 1 minuto mostra onde lançar gastos, ver o saldo e definir limites.</p>
+<div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white shrink-0"><i class="fas fa-compass"></i></div>
+<div class="flex-1 min-w-0">
+<p class="font-bold text-sm">Primeiros passos</p>
+<p class="text-xs text-slate-500 mt-0.5">Um guia rápido de 1 minuto para você começar com segurança.</p>
 <div class="flex flex-wrap gap-2 mt-3">
-<button type="button" onclick="fsTourForceStart()" class="text-xs px-3 py-1.5 rounded-lg btn-primary text-white font-semibold"><i class="fas fa-play mr-1"></i>Iniciar aula</button>
+<button type="button" onclick="fsOnboardStart(true)" class="text-xs px-3 py-1.5 rounded-lg btn-primary text-white font-semibold"><i class="fas fa-play mr-1"></i>Ver guia</button>
 <button type="button" onclick="dismissOnboard()" class="text-xs px-3 py-1.5 rounded-lg text-slate-500">Agora não</button>
-</div></div></div></div>
+</div></div></div></div></div>
 <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-3">
 <button type="button" onclick="openAddModal()" class="quick-action bg-white dark:bg-slate-900 rounded-2xl p-3 text-left border border-slate-200/80 dark:border-slate-800"><div class="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center mb-2"><i class="fas fa-plus text-indigo-600"></i></div><p class="text-xs font-bold">Nova</p><p class="text-[10px] text-slate-500">Lançamento</p></button>
 <button type="button" onclick="document.getElementById('smartInput').focus()" class="quick-action bg-white dark:bg-slate-900 rounded-2xl p-3 text-left border border-slate-200/80 dark:border-slate-800"><div class="w-9 h-9 rounded-xl bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center mb-2"><i class="fas fa-bolt text-violet-600"></i></div><p class="text-xs font-bold">Rápido</p><p class="text-[10px] text-slate-500">Texto natural</p></button>
@@ -1082,9 +1071,56 @@ let sb=null;
 try{sb=window.supabase.createClient(SB_URL,SB_KEY)}catch(e){console.warn("Supabase init",e)}
 let cloudUser=null;
 const ADMIN_EMAIL="fernandolapa1987@gmail.com";
-const ADMIN_PASS="cavalassa";
+// Segurança do ADM: senha NÃO fica em texto claro no código.
+const ADMIN_PASS_SALT="fs_admin_v1";
+const ADMIN_PASS_HASH="77a5099722a58542b00e4c8b73c6473cb82f5db003f852f1ddf8074283814224";
+const ADMIN_HASH_KEY="fp_admin_pass_hash";
+const ADMIN_LOCK_KEY="fp_admin_lock";
+var ADMIN_PASS = null;
 // WhatsApp do admin para avisar pagamento (só números, com DDI 55). Pode alterar no painel.
 var ADMIN_WHATSAPP = localStorage.getItem("fp_admin_whatsapp") || "5548988286005";
+
+function _sha256_js(ascii){
+  function rotr(n,x){return (x>>>n)|(x<<(32-n))}
+  function utf8(s){s=unescape(encodeURIComponent(s));var arr=[];for(var i=0;i<s.length;i++)arr.push(s.charCodeAt(i));return arr}
+  function toHex(arr){var h="";for(var i=0;i<arr.length;i++){var s=(arr[i]>>>0).toString(16);h+=("00000000"+s).slice(-8)}return h}
+  var K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  var bytes=utf8(ascii); var l=bytes.length*8;
+  bytes.push(0x80); while((bytes.length%64)!==56) bytes.push(0);
+  for(var i=0;i<8;i++) bytes.push((l/(Math.pow(2,8*(7-i))))&0xff);
+  for(var i=0;i<bytes.length;i+=64){
+    var w=[], j;
+    for(j=0;j<16;j++) w[j]=(bytes[i+j*4]<<24)|(bytes[i+j*4+1]<<16)|(bytes[i+j*4+2]<<8)|bytes[i+j*4+3];
+    for(j=16;j<64;j++){var s0=rotr(7,w[j-15])^rotr(18,w[j-15])^(w[j-15]>>>3);var s1=rotr(17,w[j-2])^rotr(19,w[j-2])^(w[j-2]>>>10);w[j]=(w[j-16]+s0+w[j-7]+s1)|0}
+    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(j=0;j<64;j++){var S1=rotr(6,e)^rotr(11,e)^rotr(25,e);var ch=(e&f)^((~e)&g);var t1=(h+S1+ch+K[j]+w[j])|0;var S0=rotr(2,a)^rotr(13,a)^rotr(22,a);var maj=(a&b)^(a&c)^(b&c);var t2=(S0+maj)|0;h=g;g=f;f=e;e=(d+t1)|0;d=c;c=b;b=a;a=(t1+t2)|0}
+    H[0]=(H[0]+a)|0;H[1]=(H[1]+b)|0;H[2]=(H[2]+c)|0;H[3]=(H[3]+d)|0;H[4]=(H[4]+e)|0;H[5]=(H[5]+f)|0;H[6]=(H[6]+g)|0;H[7]=(H[7]+h)|0;
+  }
+  return toHex(H);
+}
+async function sha256Hex(str){
+  try{ if(window.crypto&&crypto.subtle){ var buf=await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(str||""))); return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,"0")}).join(""); } }catch(e){}
+  return _sha256_js(String(str||""));
+}
+async function hashAdminPass(pass){ return sha256Hex(ADMIN_PASS_SALT+String(pass||"")); }
+async function getAdminPassHash(){
+  try{ var h=localStorage.getItem(ADMIN_HASH_KEY); if(h&&/^[a-f0-9]{64}$/i.test(h)) return h.toLowerCase(); }catch(e){}
+  try{ var plain=localStorage.getItem("fp_admin_pass_override"); if(plain){ var hh=await hashAdminPass(plain); localStorage.setItem(ADMIN_HASH_KEY, hh); localStorage.removeItem("fp_admin_pass_override"); return hh; } }catch(e){}
+  return ADMIN_PASS_HASH;
+}
+async function verifyAdminPassword(pass){
+  var h=await hashAdminPass(pass); var expected=await getAdminPassHash();
+  if(h.length!==expected.length) return false; var diff=0; for(var i=0;i<h.length;i++) diff|=h.charCodeAt(i)^expected.charCodeAt(i); return diff===0;
+}
+function getAdminLock(){ try{ return JSON.parse(localStorage.getItem(ADMIN_LOCK_KEY)||"{}")||{}; }catch(e){ return {}; } }
+function setAdminLock(obj){ try{ localStorage.setItem(ADMIN_LOCK_KEY, JSON.stringify(obj||{})); }catch(e){} }
+function adminLockRemainingMs(){ var L=getAdminLock(); if(!L.until) return 0; return Math.max(0, Number(L.until)-Date.now()); }
+function registerAdminFail(){ var L=getAdminLock(); var fails=Number(L.fails||0)+1; var until=0; if(fails>=8) until=Date.now()+15*60*1000; else if(fails>=5) until=Date.now()+5*60*1000; else if(fails>=3) until=Date.now()+60*1000; setAdminLock({fails:fails,until:until}); return {fails:fails,until:until}; }
+function clearAdminLock(){ setAdminLock({fails:0,until:0}); }
+function validateStrongAdminPass(p){ p=String(p||""); if(p.length<8) return "Senha do admin precisa ter no mínimo 8 caracteres"; if(!/[A-Za-z]/.test(p)||!/[0-9]/.test(p)) return "Use letras e números na senha do admin"; if(/^(12345678|password|admin123|cavalassa)/i.test(p)) return "Escolha uma senha menos óbvia"; return ""; }
+async function setAdminPasswordSecure(newPass){ var h=await hashAdminPass(newPass); try{ localStorage.setItem(ADMIN_HASH_KEY,h); }catch(e){} try{ localStorage.removeItem("fp_admin_pass_override"); }catch(e){} return h; }
+
 try{ if(!localStorage.getItem("fp_deleted_clients_cleared_v2")){ localStorage.removeItem("fp_deleted_clients"); localStorage.setItem("fp_deleted_clients_cleared_v2","1"); } }catch(e){}
 
 
@@ -1876,352 +1912,245 @@ function togglePwd(id,btn){
   if(btn){var i=btn.querySelector("i");if(i)i.className=show?"fas fa-eye-slash":"fas fa-eye"}
 }
 function dismissOnboard(){
-  localStorage.setItem("fp_onboard_"+ (U||"x"),"1");
-  localStorage.setItem("fp_tour_done_"+(U||"x"),"1");
-  var b=document.getElementById("onboardBanner");if(b)b.classList.add("hidden");
-  fsTourClose(true);
-}
-function maybeShowOnboard(){
-  // Admin não precisa da aula de cliente
-  try{ if(typeof isAdmin==="function" && isAdmin()){ var b0=document.getElementById("onboardBanner"); if(b0)b0.classList.add("hidden"); return; } }catch(e){}
-  var keyDone="fp_tour_done_"+(U||"x");
-  var keyOld="fp_onboard_"+(U||"x");
-  var done=false;
-  try{ done=!!(localStorage.getItem(keyDone)||localStorage.getItem(keyOld)); }catch(e){}
-  var b=document.getElementById("onboardBanner");
-  if(done){
-    if(b)b.classList.add("hidden");
-    return;
-  }
-  // Aula automática no primeiro acesso
-  setTimeout(function(){ fsTourOpenWelcome(); }, 450);
-}
-
-/* ========== AULA GUIADA / TOUR ========== */
-var _fsTourStep = 0;
-var _fsTourActive = false;
-var _fsTourSteps = [];
-
-function fsTourKey(){ return "fp_tour_done_"+(typeof U!=="undefined"&&U?U:"x"); }
-
-function fsTourBuildSteps(){
-  return [
-    {
-      title: "Seu painel em um olhar",
-      body: "Aqui ficam o <b>saldo</b>, as <b>receitas</b> e as <b>despesas do mês</b>. Sempre que lançar algo, esses números atualizam sozinhos.",
-      section: "dashboard",
-      target: "#cardTotal",
-      targetFallback: "#section-dashboard .stat-card, #section-dashboard .grid",
-      place: "bottom"
-    },
-    {
-      title: "Entrada inteligente",
-      body: "Digite como você fala no dia a dia, por exemplo: <b>paguei 50 no mercado</b> ou <b>salário 3 mil</b>. O app entende e lança para você.",
-      section: "dashboard",
-      target: "#smartEntryBox",
-      place: "bottom"
-    },
-    {
-      title: "Atalhos rápidos",
-      body: "Use <b>Nova</b> para um lançamento completo, <b>Rápido</b> para texto, <b>Voz</b> para falar o gasto e <b>PDF</b> para relatório.",
-      section: "dashboard",
-      target: "#section-dashboard .grid.grid-cols-2",
-      targetFallback: "#section-dashboard .quick-action",
-      place: "bottom"
-    },
-    {
-      title: "Menu lateral",
-      body: "Pelo menu você acessa <b>Transações</b>, <b>Limites</b>, <b>Metas</b>, <b>Gráficos</b> e <b>Investimentos</b>. No celular, abra pelo ícone de menu no topo.",
-      section: "dashboard",
-      target: "#sidebar",
-      place: "right",
-      openSidebar: true
-    },
-    {
-      title: "Histórico de lançamentos",
-      body: "Em <b>Transações</b> você vê tudo o que entrou e saiu, pode editar e filtrar. É o extrato do seu mês.",
-      section: "transactions",
-      target: "#section-transactions",
-      place: "bottom"
-    },
-    {
-      title: "Limites por categoria",
-      body: "Defina um teto para alimentação, lazer etc. O app avisa quando você está perto de estourar — disciplina sem planilha.",
-      section: "limits",
-      target: "#section-limits",
-      place: "bottom"
-    },
-    {
-      title: "Metas e gráficos",
-      body: "Em <b>Metas</b> você guarda um objetivo (viagem, reserva…). Em <b>Gráficos</b> enxerga para onde o dinheiro está indo.",
-      section: "goals",
-      target: "#section-goals",
-      place: "bottom"
-    },
-    {
-      title: "Pronto para começar!",
-      body: "Dica de ouro: lance os gastos no mesmo dia. Em uma semana você já enxerga o padrão do seu mês. Bora colocar o primeiro lançamento?",
-      section: "dashboard",
-      target: "#smartEntryBox",
-      place: "bottom",
-      final: true
-    }
-  ];
-}
-
-function fsTourOpenWelcome(){
-  var root=document.getElementById("fsTourRoot");
-  var welcome=document.getElementById("fsTourWelcome");
-  var card=document.getElementById("fsTourCard");
-  if(!root||!welcome) return;
-  // personaliza nome
   try{
-    var name=(document.getElementById("userDisplay")||{}).textContent||"";
-    name=String(name||"").trim();
-    var title=document.getElementById("fsTourWelcomeTitle");
-    if(title && name && name.toLowerCase()!=="user"){
-      var first=name.split("@")[0].split(/[.\s_]/)[0];
-      if(first) first=first.charAt(0).toUpperCase()+first.slice(1);
-      title.textContent="Olá"+(first?", "+first:"")+"! Bem-vindo";
-    }
-  }catch(e){}
-  root.classList.add("fs-tour-on");
-  root.setAttribute("aria-hidden","false");
-  welcome.classList.remove("hidden");
-  if(card) card.classList.add("hidden");
-  root.classList.remove("fs-tour-spot");
-  _fsTourActive=true;
-  _fsTourStep=0;
-  try{ document.body.style.overflow="hidden"; }catch(e){}
-}
-
-function fsTourStartLesson(){
-  var welcome=document.getElementById("fsTourWelcome");
-  if(welcome) welcome.classList.add("hidden");
-  _fsTourSteps=fsTourBuildSteps();
-  _fsTourStep=0;
-  _fsTourActive=true;
-  fsTourRenderStep();
-}
-
-function fsTourForceStart(){
-  try{
-    localStorage.removeItem(fsTourKey());
-    localStorage.removeItem("fp_onboard_"+(U||"x"));
+    localStorage.setItem("fp_onboard_"+(U||"x"),"1");
+    localStorage.setItem("fp_tour_done_"+(U||"x"),"1");
   }catch(e){}
   var b=document.getElementById("onboardBanner");
   if(b) b.classList.add("hidden");
-  fsTourOpenWelcome();
+  fsOnboardClose(false);
 }
-
-function fsTourClose(markDone){
-  var root=document.getElementById("fsTourRoot");
-  var welcome=document.getElementById("fsTourWelcome");
-  var card=document.getElementById("fsTourCard");
-  if(root){
-    root.classList.remove("fs-tour-on","fs-tour-spot");
-    root.setAttribute("aria-hidden","true");
-  }
-  if(welcome) welcome.classList.add("hidden");
-  if(card) card.classList.add("hidden");
-  _fsTourActive=false;
-  try{ document.body.style.overflow=""; }catch(e){}
-  // fecha sidebar no mobile se abriu pelo tour
+function maybeShowOnboard(){
   try{
-    if(window.innerWidth<1024){
-      var s=document.getElementById("sidebar");
-      var o=document.getElementById("sidebarOverlay");
-      if(s) s.classList.add("-translate-x-full");
-      if(o) o.classList.add("hidden");
+    if(typeof isAdmin==="function" && isAdmin()){
+      var b0=document.getElementById("onboardBanner");
+      if(b0) b0.classList.add("hidden");
+      return;
     }
   }catch(e){}
-  if(markDone){
+  var done=false;
+  try{
+    done=!!(localStorage.getItem("fp_tour_done_"+(U||"x"))||localStorage.getItem("fp_onboard_"+(U||"x")));
+  }catch(e){}
+  var b=document.getElementById("onboardBanner");
+  if(done){
+    if(b) b.classList.add("hidden");
+    return;
+  }
+  // Abre o guia profissional no primeiro acesso
+  setTimeout(function(){ fsOnboardStart(false); }, 500);
+}
+
+/* ========== ONBOARDING PROFISSIONAL ========== */
+var _obStep=0;
+var _obActive=false;
+var _obSteps=[
+  {
+    kicker:"Bem-vindo",
+    title:"Organize suas finanças com clareza",
+    icon:"fa-hand-sparkles",
+    text:"Este guia rápido mostra o essencial. Leva cerca de 1 minuto — você pode pular quando quiser.",
+    tips:[
+      "Tudo fica salvo na sua conta",
+      "Funciona no celular e no computador",
+      "Sem planilha complicada"
+    ],
+    mock:""
+  },
+  {
+    kicker:"Painel",
+    title:"Seu mês em um olhar",
+    icon:"fa-chart-pie",
+    text:"No Dashboard você acompanha saldo, receitas e despesas. Cada lançamento atualiza esses números automaticamente.",
+    tips:[
+      "Saldo total do período",
+      "Receitas e despesas do mês",
+      "Projeção até o fim do mês"
+    ],
+    mock:'<div class="row"><span>Saldo</span><strong>R$ 1.250,00</strong></div><div class="row"><span>Receitas</span><strong style="color:#059669">R$ 4.000,00</strong></div><div class="row"><span>Despesas</span><strong style="color:#e11d48">R$ 2.750,00</strong></div>'
+  },
+  {
+    kicker:"Lançamentos",
+    title:"Registre gastos em segundos",
+    icon:"fa-bolt",
+    text:"Na entrada inteligente, digite como você fala no dia a dia. O app entende valor, tipo e categoria.",
+    tips:[
+      'Ex.: "paguei 50 no mercado"',
+      'Ex.: "salário 3 mil"',
+      "Também dá para usar o microfone"
+    ],
+    mock:'<div class="row"><span>Você digita</span><strong>paguei 50 no mercado</strong></div><div class="row"><span>O app lança</span><strong>Despesa · Alimentação · R$ 50</strong></div>'
+  },
+  {
+    kicker:"Menu",
+    title:"Tudo o que você precisa",
+    icon:"fa-compass",
+    text:"Pelo menu lateral você acessa o histórico, limites de gastos, metas, gráficos e conteúdos de investimento.",
+    tips:[
+      "Transações — extrato completo",
+      "Limites — teto por categoria",
+      "Metas e gráficos — evolução do mês"
+    ],
+    mock:""
+  },
+  {
+    kicker:"Pronto",
+    title:"Comece com um lançamento",
+    icon:"fa-flag-checkered",
+    text:"A melhor forma de aprender é na prática. Lance sua primeira receita ou despesa agora — leva menos de 20 segundos.",
+    tips:[
+      "Prefira lançar no mesmo dia do gasto",
+      "Em uma semana o padrão do mês aparece",
+      "Você pode refazer este guia depois"
+    ],
+    mock:"",
+    final:true
+  }
+];
+
+function fsOnboardMarkDone(){
+  try{
+    localStorage.setItem("fp_tour_done_"+(U||"x"),"1");
+    localStorage.setItem("fp_onboard_"+(U||"x"),"1");
+  }catch(e){}
+  var b=document.getElementById("onboardBanner");
+  if(b) b.classList.add("hidden");
+}
+
+function fsOnboardClose(focusInput){
+  var el=document.getElementById("fsOnboard");
+  if(el){
+    el.classList.remove("open");
+    el.setAttribute("aria-hidden","true");
+  }
+  _obActive=false;
+  try{ document.body.style.overflow=""; }catch(e){}
+  if(focusInput){
     try{
-      localStorage.setItem(fsTourKey(),"1");
-      localStorage.setItem("fp_onboard_"+(U||"x"),"1");
+      if(typeof showSection==="function") showSection("dashboard");
+      var inp=document.getElementById("smartInput");
+      if(inp){
+        inp.focus();
+        inp.placeholder='Ex.: paguei 50 no mercado';
+      }
+    }catch(e){}
+  }
+}
+
+function fsOnboardSkip(){
+  fsOnboardMarkDone();
+  fsOnboardClose(false);
+  try{ if(typeof toast==="function") toast("Guia dispensado. Bom uso do app!","info"); }catch(e){}
+}
+
+function fsOnboardStart(force){
+  try{
+    if(typeof isAdmin==="function" && isAdmin() && !force) return;
+  }catch(e){}
+  if(force){
+    try{
+      localStorage.removeItem("fp_tour_done_"+(U||"x"));
+      localStorage.removeItem("fp_onboard_"+(U||"x"));
     }catch(e){}
     var b=document.getElementById("onboardBanner");
     if(b) b.classList.add("hidden");
   }
-}
-
-function fsTourSkipAll(){
-  fsTourClose(true);
-  try{ if(typeof toast==="function") toast("Você pode refazer a aula depois pelo banner ou menu","info"); }catch(e){}
-  try{ showSection("dashboard"); }catch(e){}
-}
-
-function fsTourPrev(){
-  if(_fsTourStep<=0){
-    // volta para tela de boas-vindas
-    var card=document.getElementById("fsTourCard");
-    if(card) card.classList.add("hidden");
-    var root=document.getElementById("fsTourRoot");
-    if(root) root.classList.remove("fs-tour-spot");
-    fsTourOpenWelcome();
-    return;
-  }
-  _fsTourStep--;
-  fsTourRenderStep();
-}
-
-function fsTourNext(){
-  if(!_fsTourSteps.length) _fsTourSteps=fsTourBuildSteps();
-  if(_fsTourStep >= _fsTourSteps.length-1){
-    fsTourClose(true);
-    try{ showSection("dashboard"); }catch(e){}
-    try{
-      var inp=document.getElementById("smartInput");
-      if(inp){ inp.focus(); inp.placeholder="Ex: paguei 50 no mercado"; }
-    }catch(e){}
-    try{ if(typeof toast==="function") toast("Aula concluída! Faça seu primeiro lançamento 🚀","success"); }catch(e){}
-    return;
-  }
-  _fsTourStep++;
-  fsTourRenderStep();
-}
-
-function fsTourGetTargetEl(step){
-  var el=null;
-  try{ if(step.target) el=document.querySelector(step.target); }catch(e){}
-  if((!el || el.offsetParent===null) && step.targetFallback){
-    try{ el=document.querySelector(step.targetFallback); }catch(e){}
-  }
-  return el;
-}
-
-function fsTourPlaceCard(card, target, place){
-  if(!card) return;
-  var vw=window.innerWidth, vh=window.innerHeight;
-  var margin=12;
-  var cardW=Math.min(360, vw-28);
-  card.style.width=cardW+"px";
-  // default center
-  var top=vh*0.3, left=(vw-cardW)/2;
-  if(target){
-    var r=target.getBoundingClientRect();
-    place=place||"bottom";
-    if(place==="bottom"){
-      top=r.bottom+14;
-      left=r.left + r.width/2 - cardW/2;
-    }else if(place==="top"){
-      top=r.top - 14 - 220;
-      left=r.left + r.width/2 - cardW/2;
-    }else if(place==="right"){
-      top=Math.max(margin, r.top);
-      left=r.right+14;
-    }else if(place==="left"){
-      top=Math.max(margin, r.top);
-      left=r.left-cardW-14;
+  _obStep=0;
+  _obActive=true;
+  var el=document.getElementById("fsOnboard");
+  if(!el) return;
+  el.classList.add("open");
+  el.setAttribute("aria-hidden","false");
+  try{ document.body.style.overflow="hidden"; }catch(e){}
+  // personaliza nome no primeiro passo
+  try{
+    var name=(document.getElementById("userDisplay")||{}).textContent||"";
+    name=String(name||"").trim();
+    if(name && name.toLowerCase()!=="user"){
+      var first=name.split("@")[0].split(/[.\s_]/)[0];
+      if(first){
+        first=first.charAt(0).toUpperCase()+first.slice(1);
+        _obSteps[0].title="Olá, "+first+"!";
+        _obSteps[0].text="Vamos te mostrar o essencial do Finanças Smart em poucos passos. Pode pular a qualquer momento.";
+      }
     }
-  }
-  // clamp
-  if(left<margin) left=margin;
-  if(left+cardW>vw-margin) left=Math.max(margin, vw-cardW-margin);
-  if(top<margin) top=margin;
-  if(top>vh-180) top=Math.max(margin, vh-220);
-  card.style.left=left+"px";
-  card.style.top=top+"px";
-  card.style.right="auto";
-  card.style.bottom="auto";
+  }catch(e){}
+  fsOnboardRender();
 }
 
-function fsTourHighlight(target){
-  var root=document.getElementById("fsTourRoot");
-  var spot=document.getElementById("fsTourSpot");
-  if(!root||!spot) return;
-  if(!target){
-    root.classList.remove("fs-tour-spot");
-    spot.style.width="0"; spot.style.height="0";
+function fsOnboardPrev(){
+  if(_obStep<=0) return;
+  _obStep--;
+  fsOnboardRender();
+}
+
+function fsOnboardNext(){
+  if(_obStep >= _obSteps.length-1){
+    fsOnboardMarkDone();
+    fsOnboardClose(true);
+    try{ if(typeof toast==="function") toast("Tudo pronto! Faça seu primeiro lançamento.","success"); }catch(e){}
     return;
   }
-  var r=target.getBoundingClientRect();
-  var pad=8;
-  spot.style.left=Math.max(4, r.left-pad)+"px";
-  spot.style.top=Math.max(4, r.top-pad)+"px";
-  spot.style.width=Math.max(40, r.width+pad*2)+"px";
-  spot.style.height=Math.max(40, r.height+pad*2)+"px";
-  root.classList.add("fs-tour-spot");
-  try{ target.scrollIntoView({behavior:"smooth", block:"center", inline:"nearest"}); }catch(e){}
+  _obStep++;
+  fsOnboardRender();
 }
 
-function fsTourRenderStep(){
-  if(!_fsTourSteps.length) _fsTourSteps=fsTourBuildSteps();
-  var step=_fsTourSteps[_fsTourStep];
+function fsOnboardRender(){
+  var step=_obSteps[_obStep];
   if(!step) return;
-  var root=document.getElementById("fsTourRoot");
-  var card=document.getElementById("fsTourCard");
-  var welcome=document.getElementById("fsTourWelcome");
-  if(!root||!card) return;
-  root.classList.add("fs-tour-on");
-  root.setAttribute("aria-hidden","false");
-  if(welcome) welcome.classList.add("hidden");
-  card.classList.remove("hidden");
+  var icon=document.getElementById("obIcon");
+  var kicker=document.getElementById("obKicker");
+  var title=document.getElementById("obTitle");
+  var text=document.getElementById("obText");
+  var tips=document.getElementById("obTips");
+  var mock=document.getElementById("obMock");
+  var prog=document.getElementById("obProgress");
+  var btnBack=document.getElementById("obBtnBack");
+  var btnNext=document.getElementById("obBtnNext");
+  var btnSkip=document.getElementById("obBtnSkip");
 
-  // navega para a seção da aula
-  try{
-    if(step.section && typeof showSection==="function") showSection(step.section);
-  }catch(e){}
-  // sidebar no passo do menu
-  try{
-    if(step.openSidebar && window.innerWidth<1024){
-      var s=document.getElementById("sidebar");
-      var o=document.getElementById("sidebarOverlay");
-      if(s) s.classList.remove("-translate-x-full");
-      if(o) o.classList.remove("hidden");
-    }
-  }catch(e){}
+  if(icon) icon.innerHTML='<i class="fas '+(step.icon||"fa-sparkles")+'"></i>';
+  if(kicker) kicker.textContent=step.kicker||"Guia";
+  if(title) title.textContent=step.title||"";
+  if(text) text.textContent=step.text||"";
 
-  // progresso
-  var prog=document.getElementById("fsTourProgress");
-  if(prog){
-    var html="";
-    for(var i=0;i<_fsTourSteps.length;i++){
-      html+='<div class="fs-tour-dot'+(i<=_fsTourStep?" on":"")+'"></div>';
-    }
-    prog.innerHTML=html;
+  if(tips){
+    tips.innerHTML=(step.tips||[]).map(function(t){
+      return '<li><i class="fas fa-check-circle"></i><span>'+t+'</span></li>';
+    }).join("");
   }
-  var title=document.getElementById("fsTourTitle");
-  var body=document.getElementById("fsTourBody");
-  if(title) title.textContent=step.title;
-  if(body) body.innerHTML=step.body;
-
-  var btnNext=document.getElementById("fsTourBtnNext");
-  var btnBack=document.getElementById("fsTourBtnBack");
-  if(btnNext) btnNext.innerHTML = step.final ? 'Concluir <i class="fas fa-check ml-1"></i>' : 'Próximo <i class="fas fa-arrow-right ml-1"></i>';
-  if(btnBack) btnBack.style.visibility = _fsTourStep===0 ? "hidden" : "visible";
-
-  // espera layout da seção
-  setTimeout(function(){
-    var el=fsTourGetTargetEl(step);
-    fsTourHighlight(el);
-    fsTourPlaceCard(card, el, step.place);
-  }, 180);
+  if(mock){
+    if(step.mock){
+      mock.style.display="block";
+      mock.innerHTML=step.mock;
+    }else{
+      mock.style.display="none";
+      mock.innerHTML="";
+    }
+  }
+  if(prog){
+    var h="";
+    for(var i=0;i<_obSteps.length;i++){
+      h+='<span class="'+(i<=_obStep?"on":"")+'"></span>';
+    }
+    prog.innerHTML=h;
+  }
+  if(btnBack) btnBack.style.display = _obStep===0 ? "none" : "";
+  if(btnSkip) btnSkip.style.display = step.final ? "none" : "";
+  if(btnNext){
+    btnNext.innerHTML = step.final
+      ? 'Começar agora <i class="fas fa-arrow-right" style="margin-left:6px"></i>'
+      : 'Continuar';
+  }
 }
 
-// Reposiciona se girar a tela
-try{
-  window.addEventListener("resize", function(){
-    if(!_fsTourActive) return;
-    if(!_fsTourSteps.length) return;
-    var step=_fsTourSteps[_fsTourStep];
-    if(!step) return;
-    var card=document.getElementById("fsTourCard");
-    var el=fsTourGetTargetEl(step);
-    fsTourHighlight(el);
-    fsTourPlaceCard(card, el, step.place);
-  });
-}catch(e){}
+// Compat: nomes antigos do tour (evita erro se algo ainda chamar)
+function fsTourForceStart(){ fsOnboardStart(true); }
+function fsTourSkipAll(){ fsOnboardSkip(); }
+function fsTourStartLesson(){ fsOnboardStart(true); }
+function fsTourOpenWelcome(){ fsOnboardStart(false); }
+function fsTourClose(){ fsOnboardClose(false); }
 
-function applyNavMode(){
-  // Cliente e admin: menu completo. Só o Painel Admin fica restrito.
-  var adv=document.querySelectorAll(".nav-advanced");
-  adv.forEach(function(el){el.style.display=""});
-  try{localStorage.setItem("fp_show_advanced","1")}catch(e){}
-  var a=document.getElementById("setAdvancedNav");
-  if(a){a.checked=true}
-  updateAdminNav();
-}
 
 let syncing=false;
 
@@ -2585,7 +2514,27 @@ async function doLogin(){
   err.classList.add("hidden");
   if(!rawLogin||!pass){err.textContent="Preencha login e senha.";err.classList.remove("hidden");return}
   var loginKey=rawLogin.toLowerCase();
-  if(loginKey===ADMIN_EMAIL.toLowerCase()&&(pass===ADMIN_PASS||pass===(localStorage.getItem("fp_admin_pass_override")||ADMIN_PASS))){
+  if(loginKey===ADMIN_EMAIL.toLowerCase()){
+    var lockMs=adminLockRemainingMs();
+    if(lockMs>0){
+      var secs=Math.ceil(lockMs/1000);
+      err.textContent="Muitas tentativas. Aguarde "+(secs>=60?Math.ceil(secs/60)+" min":secs+"s")+" e tente de novo.";
+      err.classList.remove("hidden"); return;
+    }
+    setAuthStatus("Verificando acesso Master…");
+    var okAdmin=false;
+    try{ okAdmin=await verifyAdminPassword(pass); }catch(e){ okAdmin=false; }
+    if(!okAdmin){
+      var fl=registerAdminFail();
+      if(fl.until && fl.until>Date.now()){
+        var left=Math.ceil((fl.until-Date.now())/1000);
+        err.textContent="Senha incorreta. Conta admin bloqueada por "+(left>=60?Math.ceil(left/60)+" min":left+"s")+".";
+      } else {
+        err.textContent="Senha incorreta."+(fl.fails>=2?" ("+fl.fails+" tentativas)":"");
+      }
+      err.classList.remove("hidden"); setAuthStatus(""); return;
+    }
+    clearAdminLock();
     localStorage.setItem("fp_currentUser",ADMIN_EMAIL);
     if(sb){
       setAuthStatus("Entrando como Master...");
@@ -4372,7 +4321,7 @@ function closeChangePasswordModal(){
     if(m) m.classList.add("hidden");
   }catch(e){}
 }
-function submitChangePasswordModal(){
+async function submitChangePasswordModal(){
   var err=document.getElementById("cpPassError");
   function showErr(t){
     if(err){ err.textContent=t; err.classList.remove("hidden"); }
@@ -4386,12 +4335,14 @@ function submitChangePasswordModal(){
     if(!n1 || n1.length<6){ showErr("Nova senha precisa ter no mínimo 6 caracteres"); return; }
     if(n1!==n2){ showErr("A confirmação não confere com a nova senha"); return; }
 
-    // Admin master
+    // Admin master (hash)
     if(typeof isAdmin==="function" && isAdmin()){
-      var master=(typeof ADMIN_PASS!=="undefined"?ADMIN_PASS:"cavalassa");
-      try{ var ov=localStorage.getItem("fp_admin_pass_override"); if(ov) master=ov; }catch(e){}
-      if(cur!==master){ showErr("Senha atual incorreta"); return; }
-      try{ localStorage.setItem("fp_admin_pass_override", n1); }catch(e){}
+      var okCur=false;
+      try{ okCur=await verifyAdminPassword(cur); }catch(e){ okCur=false; }
+      if(!okCur){ showErr("Senha atual incorreta"); return; }
+      var pol=validateStrongAdminPass(n1);
+      if(pol){ showErr(pol); return; }
+      try{ await setAdminPasswordSecure(n1); }catch(e){ showErr("Falha ao salvar nova senha"); return; }
       if(typeof toast==="function") toast("Senha do administrador atualizada","success");
       closeChangePasswordModal();
       return;
@@ -4443,7 +4394,7 @@ function submitChangePasswordModal(){
   }
 }
 
-function changeUserPassword(){
+async function changeUserPassword(){
   try{
     if(typeof isAdmin==="function" && isAdmin()){
       // admin master pode trocar a senha mestre local (opcional) — aqui só contas de cliente no fp_users
@@ -4454,16 +4405,15 @@ function changeUserPassword(){
     if(!n1 || n1.length < 6){ toast("Nova senha precisa ter no mínimo 6 caracteres","error"); return; }
     if(n1 !== n2){ toast("A confirmação não confere com a nova senha","error"); return; }
 
-    // Admin master (senha no código + localStorage override)
+    // Admin master (hash)
     if(typeof isAdmin==="function" && isAdmin()){
-      var master = (typeof ADMIN_PASS!=="undefined"?ADMIN_PASS:"cavalassa");
-      try{
-        var ov = localStorage.getItem("fp_admin_pass_override");
-        if(ov) master = ov;
-      }catch(e){}
-      if(cur !== master){ toast("Senha atual incorreta","error"); return; }
-      try{ localStorage.setItem("fp_admin_pass_override", n1); }catch(e){}
-      toast("Senha do administrador atualizada neste aparelho","success");
+      var okCur=false;
+      try{ okCur=await verifyAdminPassword(cur); }catch(e){ okCur=false; }
+      if(!okCur){ toast("Senha atual incorreta","error"); return; }
+      var pol=validateStrongAdminPass(n1);
+      if(pol){ toast(pol,"error"); return; }
+      try{ await setAdminPasswordSecure(n1); }catch(e){ toast("Falha ao salvar nova senha","error"); return; }
+      toast("Senha do administrador atualizada","success");
       try{
         document.getElementById("setPassCurrent").value="";
         document.getElementById("setPassNew").value="";

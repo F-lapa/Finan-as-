@@ -327,17 +327,22 @@ main .p-4,main .p-6,main{min-width:0}
 
 <section id="section-dashboard" class="space-y-6">
 
-<div id="trialPayBanner" class="rounded-3xl p-4 sm:p-5 border-2 border-amber-300 dark:border-amber-700 bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50 dark:from-amber-950/50 dark:via-orange-950/40 dark:to-rose-950/40 shadow-md">
-  <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+<div id="trialPayBanner" class="rounded-3xl p-4 sm:p-5 border-2 border-indigo-200 dark:border-indigo-800/60 bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-50 dark:from-indigo-950/50 dark:via-violet-950/40 dark:to-fuchsia-950/30 shadow-md overflow-hidden relative">
+  <div class="absolute -right-6 -top-6 w-28 h-28 rounded-full bg-indigo-400/10 pointer-events-none"></div>
+  <div class="flex flex-col sm:flex-row sm:items-center gap-4 relative">
     <div class="flex items-start gap-3 flex-1 min-w-0">
-      <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white shrink-0 shadow-md" id="trialPayIcon"><i class="fas fa-hourglass-half"></i></div>
-      <div class="min-w-0">
-        <p class="font-extrabold text-sm sm:text-base text-slate-800 dark:text-slate-100" id="trialPayTitle">Pagamento necessário</p>
-        <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-0.5" id="trialPayText">Para manter o acesso vitalício, realize o pagamento único via Pix.</p>
+      <div id="trialDaysBadge" class="shrink-0 w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/30 flex flex-col items-center justify-center">
+        <span id="trialDaysNum" class="text-2xl sm:text-3xl font-black leading-none">7</span>
+        <span id="trialDaysUnit" class="text-[9px] sm:text-[10px] font-bold uppercase tracking-wide opacity-90">dias</span>
+      </div>
+      <div class="min-w-0 pt-0.5">
+        <p class="font-extrabold text-sm sm:text-base text-slate-800 dark:text-slate-100 leading-snug" id="trialPayTitle">Faltam 7 dias para terminar o seu teste</p>
+        <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed" id="trialPayText">Aproveite cada recurso agora. Quando o teste acabar, um único Pix libera o acesso vitalício — sem mensalidade, para sempre.</p>
+        <p class="text-[11px] text-indigo-600 dark:text-indigo-300 font-semibold mt-1.5" id="trialPayHint"><i class="fas fa-sparkles mr-1"></i>Organize suas finanças hoje e continue sem interrupção.</p>
       </div>
     </div>
     <button type="button" id="trialPayBtn" onclick="showSection('payment')" class="w-full sm:w-auto shrink-0 px-5 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-sm font-bold shadow-lg shadow-emerald-500/30 hover:brightness-110 transition">
-      <i class="fas fa-qrcode mr-1.5"></i>Pagar agora
+      <i class="fas fa-crown mr-1.5"></i>Garantir vitalício
     </button>
   </div>
 </div>
@@ -2766,7 +2771,6 @@ function renderTrialPayBanner(){
   if(typeof isAdmin==="function"&&isAdmin()){ box.classList.add("hidden"); return; }
   var acc=null;
   try{ acc=ensureAccountTrial(U); }catch(e){ acc=getAccount(U); }
-  // Pago = some banner. Nao pago = SEMPRE mostra CTA no dashboard
   if(acc && isAccountPaid(acc)){ box.classList.add("hidden"); return; }
   try{
     var paidList=JSON.parse(localStorage.getItem("fp_paid_logins")||"[]");
@@ -2775,20 +2779,46 @@ function renderTrialPayBanner(){
   box.classList.remove("hidden");
   var title=document.getElementById("trialPayTitle");
   var txt=document.getElementById("trialPayText");
+  var hint=document.getElementById("trialPayHint");
   var btn=document.getElementById("trialPayBtn");
-  var icon=document.getElementById("trialPayIcon");
+  var numEl=document.getElementById("trialDaysNum");
+  var unitEl=document.getElementById("trialDaysUnit");
+  var badge=document.getElementById("trialDaysBadge");
   var amount=(typeof formatPixBRL==="function"&&typeof getPixAmount==="function")?formatPixBRL(getPixAmount()):"R$ 19,90";
-  var days=(acc && typeof daysLeftTrial==="function")?daysLeftTrial(acc):0;
+  var days=(acc && typeof daysLeftTrial==="function")?Math.max(0, daysLeftTrial(acc)):0;
   var trialOn=acc && typeof isTrialActive==="function" && isTrialActive(acc) && !(acc && acc.paid===true);
-  if(trialOn){
-    if(icon) icon.innerHTML='<i class="fas fa-hourglass-half"></i>';
-    if(title) title.textContent="Teste grátis em andamento";
-    if(txt) txt.innerHTML="Faltam <strong>"+days+" dia"+(days===1?"":"s")+"</strong>. Depois do teste, pague <strong>"+amount+"</strong> via Pix para acesso vitalício.";
-    if(btn) btn.innerHTML='<i class="fas fa-qrcode mr-1.5"></i>Ver pagamento';
+
+  function dayWord(n){ return n===1?"dia":"dias"; }
+
+  if(trialOn && days>0){
+    if(numEl) numEl.textContent=String(days);
+    if(unitEl) unitEl.textContent=dayWord(days);
+    if(badge){
+      if(days<=2) badge.className="shrink-0 w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] rounded-2xl bg-gradient-to-br from-rose-500 to-orange-500 text-white shadow-lg shadow-rose-500/30 flex flex-col items-center justify-center";
+      else if(days<=4) badge.className="shrink-0 w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30 flex flex-col items-center justify-center";
+      else badge.className="shrink-0 w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/30 flex flex-col items-center justify-center";
+    }
+    if(title) title.textContent="Faltam "+days+" "+dayWord(days)+" para terminar o seu teste";
+    var msgs=[
+      "Você está no controle das suas finanças — não deixe essa clareza acabar. Garanta o vitalício por apenas "+amount+" e continue sem pausa.",
+      "Cada dia conta. Organize, acompanhe e planeje agora; depois do teste, um único Pix de "+amount+" libera o app para sempre.",
+      "Seu teste está rolando. Aproveite metas, gráficos e lançamentos inteligentes — e assegure o acesso vitalício antes do prazo acabar."
+    ];
+    var msg=msgs[Math.min(2, days<=2?0:(days<=4?1:2))];
+    if(txt) txt.textContent=msg;
+    if(hint){
+      if(days===1) hint.innerHTML='<i class="fas fa-bell mr-1"></i>Último dia! Garanta agora e não perca o ritmo das suas finanças.';
+      else if(days<=3) hint.innerHTML='<i class="fas fa-fire mr-1"></i>Falta pouco — trave o vitalício e use o Finanças Smart sem pressa.';
+      else hint.innerHTML='<i class="fas fa-sparkles mr-1"></i>Organize hoje e continue depois do teste, sem mensalidade.';
+    }
+    if(btn) btn.innerHTML='<i class="fas fa-crown mr-1.5"></i>Garantir vitalício';
   } else {
-    if(icon) icon.innerHTML='<i class="fas fa-lock"></i>';
-    if(title) title.textContent="Pagamento necessário";
-    if(txt) txt.innerHTML="Para continuar com acesso vitalício, pague <strong>"+amount+"</strong> via Pix (pagamento único, sem mensalidade).";
+    if(numEl) numEl.textContent="0";
+    if(unitEl) unitEl.textContent="dias";
+    if(badge) badge.className="shrink-0 w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] rounded-2xl bg-gradient-to-br from-rose-600 to-red-500 text-white shadow-lg shadow-rose-500/30 flex flex-col items-center justify-center";
+    if(title) title.textContent="Seu teste terminou";
+    if(txt) txt.textContent="O período grátis acabou, mas suas finanças não precisam parar. Por apenas "+amount+" (pagamento único) você libera o acesso vitalício e continua de onde parou.";
+    if(hint) hint.innerHTML='<i class="fas fa-lock-open mr-1"></i>Sem mensalidade. Um Pix e o app é seu para sempre.';
     if(btn) btn.innerHTML='<i class="fas fa-qrcode mr-1.5"></i>Pagar agora';
   }
   try{ updatePaymentNav(); }catch(e){}

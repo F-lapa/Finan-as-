@@ -48,6 +48,23 @@ body{background:radial-gradient(ellipse 100% 80% at 10% -10%,color-mix(in srgb,v
 .pwd-toggle:hover{color:var(--primary)}
 .settings-section{border:1px solid rgba(148,163,184,.2);border-radius:1rem;padding:1rem;margin-bottom:.75rem}
 .dark .settings-section{border-color:rgba(51,65,85,.7)}
+#settingsModal .settings-panel{display:flex;flex-direction:column;max-height:min(92vh,720px);width:100%;}
+#settingsModal .settings-body{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-right:4px;scrollbar-width:thin;scrollbar-color:#a5b4fc transparent}
+#settingsModal .settings-body::-webkit-scrollbar{width:8px}
+#settingsModal .settings-body::-webkit-scrollbar-track{background:transparent;border-radius:99px}
+#settingsModal .settings-body::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#818cf8,#6366f1);border-radius:99px;border:2px solid transparent;background-clip:padding-box}
+.dark #settingsModal .settings-body::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#6366f1,#4f46e5);border:2px solid transparent;background-clip:padding-box}
+#settingsModal .settings-card{border:1px solid rgba(148,163,184,.22);border-radius:1.1rem;padding:1rem 1.05rem;background:rgba(248,250,252,.9);margin-bottom:.85rem}
+.dark #settingsModal .settings-card{background:rgba(15,23,42,.55);border-color:rgba(51,65,85,.75)}
+#settingsModal .settings-card-title{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin:0 0 .75rem;display:flex;align-items:center;gap:.45rem}
+.dark #settingsModal .settings-card-title{color:#94a3b8}
+#settingsModal .color-dot{width:2rem;height:2rem;border-radius:999px;border:2px solid transparent;box-shadow:0 0 0 0 rgba(99,102,241,0);transition:transform .15s,box-shadow .15s}
+#settingsModal .color-dot:hover{transform:scale(1.08)}
+#settingsModal .settings-input{width:100%;padding:.65rem .85rem;border-radius:.85rem;border:1px solid rgba(148,163,184,.35);background:#fff;font-size:.875rem;outline:none}
+.dark #settingsModal .settings-input{background:#0f172a;border-color:rgba(51,65,85,.85);color:#e2e8f0}
+#settingsModal .settings-input:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.2)}
+#settingsModal .settings-danger{border-color:rgba(244,63,94,.35)!important;background:linear-gradient(160deg,rgba(255,241,242,.95),rgba(255,255,255,.9))!important}
+.dark #settingsModal .settings-danger{background:linear-gradient(160deg,rgba(76,5,25,.35),rgba(15,23,42,.7))!important;border-color:rgba(244,63,94,.35)!important}
 ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:#94a3b8;border-radius:99px}
 .dark ::-webkit-scrollbar-thumb{background:#475569}
 .toast{animation:slideIn .35s ease}@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
@@ -972,65 +989,94 @@ body.app-locked #paywallModal { display: block !important; }
 </div>
 
 <div id="settingsModal" class="fixed inset-0 z-50 hidden">
-<div class="absolute inset-0 bg-black/50" onclick="closeSettings()"></div>
-<div class="absolute inset-x-4 top-1/2 -translate-y-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-6">
-<div class="flex justify-between mb-5"><div><h3 class="text-lg font-extrabold tracking-tight">Configurações</h3><p class="text-xs text-slate-500">Preferências do sistema</p></div><button onclick="closeSettings()" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"><i class="fas fa-times"></i></button></div>
-<div class="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-<div class="settings-section">
-<p class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Aparência</p>
-<label class="block text-sm font-medium mb-2">Cor de destaque</label>
-<div class="flex gap-2 flex-wrap">
-<button onclick="setPrimaryColor('#6366f1')" class="w-8 h-8 rounded-full bg-indigo-500"></button>
-<button onclick="setPrimaryColor('#10b981')" class="w-8 h-8 rounded-full bg-emerald-500"></button>
-<button onclick="setPrimaryColor('#f59e0b')" class="w-8 h-8 rounded-full bg-amber-500"></button>
-<button onclick="setPrimaryColor('#ef4444')" class="w-8 h-8 rounded-full bg-red-500"></button>
-<button onclick="setPrimaryColor('#8b5cf6')" class="w-8 h-8 rounded-full bg-violet-500"></button>
-<button onclick="setPrimaryColor('#06b6d4')" class="w-8 h-8 rounded-full bg-cyan-500"></button>
-<button onclick="setPrimaryColor('#ec4899')" class="w-8 h-8 rounded-full bg-pink-500"></button>
-</div>
-</div>
-<div class="settings-section">
-<p class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Interface</p>
-<label class="flex items-center justify-between gap-3 cursor-pointer text-sm py-1"><span>Menu completo (sempre ativo)</span><input type="checkbox" id="setAdvancedNav" class="w-4 h-4 rounded" checked disabled title="Clientes e admin usam o menu completo; só o Painel Admin é restrito"></label>
-<label class="flex items-center justify-between gap-3 cursor-pointer text-sm py-1"><span>Tema escuro</span><input type="checkbox" id="setDarkTheme" class="w-4 h-4 rounded" onchange="if(this.checked!==document.documentElement.classList.contains('dark'))toggleTheme()"></label>
-</div>
-<div class="settings-section">
-<p class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Assistente IA</p>
-<p class="text-xs text-slate-500 mb-2">OpenAI, Groq ou API compatível.</p>
-<div class="space-y-2">
-<input type="password" id="aiApiKey" placeholder="API Key (sk-... ou gsk_...)" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none">
-<input type="text" id="aiBaseUrl" placeholder="Base URL (opcional)" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none">
-<input type="text" id="aiModel" placeholder="Modelo (ex: gpt-4o-mini)" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none">
-<div class="flex gap-2">
-<button type="button" onclick="setAiPreset('groq')" class="flex-1 px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-xs">Preset Groq</button>
-<button type="button" onclick="setAiPreset('openai')" class="flex-1 px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-xs">Preset OpenAI</button>
-</div>
-<button onclick="saveAiSettings()" class="w-full px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium">Salvar API</button>
-</div>
-<p class="text-xs text-slate-400 mt-2">Groq (grátis): base https://api.groq.com/openai/v1 · modelo llama-3.3-70b-versatile</p>
-</div>
+<div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeSettings()"></div>
+<div class="absolute inset-x-3 sm:inset-x-auto top-[4%] sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-lg settings-panel bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden">
+  <div class="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
+    <div class="min-w-0">
+      <div class="flex items-center gap-2.5">
+        <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 shrink-0"><i class="fas fa-sliders"></i></div>
+        <div class="min-w-0">
+          <h3 class="text-lg font-extrabold tracking-tight m-0 text-slate-900 dark:text-white">Configurações</h3>
+          <p class="text-xs text-slate-500 m-0 mt-0.5">Aparência, segurança e conta</p>
+        </div>
+      </div>
+    </div>
+    <button type="button" onclick="closeSettings()" class="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 flex items-center justify-center shrink-0" aria-label="Fechar"><i class="fas fa-times"></i></button>
+  </div>
 
+  <div class="settings-body px-5 py-4">
+    <div class="settings-card">
+      <p class="settings-card-title"><i class="fas fa-palette text-indigo-500"></i> Aparência</p>
+      <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2.5">Cor de destaque</label>
+      <div class="flex gap-2.5 flex-wrap">
+        <button type="button" onclick="setPrimaryColor('#6366f1')" class="color-dot bg-indigo-500" title="Índigo"></button>
+        <button type="button" onclick="setPrimaryColor('#10b981')" class="color-dot bg-emerald-500" title="Verde"></button>
+        <button type="button" onclick="setPrimaryColor('#f59e0b')" class="color-dot bg-amber-500" title="Âmbar"></button>
+        <button type="button" onclick="setPrimaryColor('#ef4444')" class="color-dot bg-red-500" title="Vermelho"></button>
+        <button type="button" onclick="setPrimaryColor('#8b5cf6')" class="color-dot bg-violet-500" title="Violeta"></button>
+        <button type="button" onclick="setPrimaryColor('#06b6d4')" class="color-dot bg-cyan-500" title="Ciano"></button>
+        <button type="button" onclick="setPrimaryColor('#ec4899')" class="color-dot bg-pink-500" title="Rosa"></button>
+      </div>
+    </div>
+
+    <div class="settings-card">
+      <p class="settings-card-title"><i class="fas fa-desktop text-indigo-500"></i> Interface</p>
+      <label class="flex items-center justify-between gap-3 cursor-pointer text-sm py-2.5 border-b border-slate-100 dark:border-slate-800">
+        <span class="text-slate-700 dark:text-slate-200 font-medium">Menu completo</span>
+        <input type="checkbox" id="setAdvancedNav" class="w-4 h-4 rounded accent-indigo-600" checked disabled title="Sempre ativo">
+      </label>
+      <label class="flex items-center justify-between gap-3 cursor-pointer text-sm py-2.5">
+        <span class="text-slate-700 dark:text-slate-200 font-medium">Tema escuro</span>
+        <input type="checkbox" id="setDarkTheme" class="w-4 h-4 rounded accent-indigo-600" onchange="if(this.checked!==document.documentElement.classList.contains('dark'))toggleTheme()">
+      </label>
+    </div>
+
+    <div class="settings-card">
+      <p class="settings-card-title"><i class="fas fa-robot text-indigo-500"></i> Assistente IA</p>
+      <p class="text-xs text-slate-500 m-0 mb-3">OpenAI, Groq ou API compatível.</p>
+      <div class="space-y-2">
+        <input type="password" id="aiApiKey" placeholder="API Key (sk-... ou gsk_...)" class="settings-input">
+        <input type="text" id="aiBaseUrl" placeholder="Base URL (opcional)" class="settings-input">
+        <input type="text" id="aiModel" placeholder="Modelo (ex: gpt-4o-mini)" class="settings-input">
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" onclick="setAiPreset('groq')" class="px-2 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800">Preset Groq</button>
+          <button type="button" onclick="setAiPreset('openai')" class="px-2 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800">Preset OpenAI</button>
+        </div>
+        <button type="button" onclick="saveAiSettings()" class="w-full px-3 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold">Salvar API</button>
+      </div>
+      <p class="text-[11px] text-slate-400 mt-2.5 m-0 leading-relaxed">Groq (grátis): base https://api.groq.com/openai/v1 · modelo llama-3.3-70b-versatile</p>
+    </div>
+
+    <div class="settings-card" id="settingsPasswordBox">
+      <p class="settings-card-title"><i class="fas fa-shield-halved text-indigo-500"></i> Segurança · senha</p>
+      <p class="text-[11px] text-slate-500 m-0 mb-3">Altere a senha da sua conta.</p>
+      <div class="space-y-2">
+        <input type="password" id="setPassCurrent" placeholder="Senha atual" class="settings-input" autocomplete="current-password">
+        <input type="password" id="setPassNew" placeholder="Nova senha (mín. 6 caracteres)" class="settings-input" autocomplete="new-password">
+        <input type="password" id="setPassNew2" placeholder="Confirmar nova senha" class="settings-input" autocomplete="new-password">
+        <button type="button" onclick="changeUserPassword()" class="w-full px-3 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold"><i class="fas fa-key mr-1"></i>Salvar nova senha</button>
+      </div>
+    </div>
+
+    <div class="settings-card">
+      <p class="settings-card-title"><i class="fas fa-database text-indigo-500"></i> Dados do app</p>
+      <p class="text-[11px] text-slate-500 m-0 mb-3">Backup ou limpeza das transações neste aparelho (a conta continua existindo).</p>
+      <div class="space-y-2">
+        <button type="button" onclick="exportJSON()" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"><i class="fas fa-download mr-2 text-indigo-500"></i>Exportar backup JSON</button>
+        <button type="button" onclick="clearAllData()" class="w-full px-4 py-2.5 rounded-xl border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-sm font-semibold hover:bg-amber-50 dark:hover:bg-amber-950/30"><i class="fas fa-broom mr-2"></i>Limpar só os dados financeiros</button>
+      </div>
+    </div>
+
+    <div class="settings-card settings-danger" id="settingsDeleteAccountBox">
+      <p class="settings-card-title" style="color:#e11d48"><i class="fas fa-user-slash"></i> Excluir conta permanentemente</p>
+      <p class="text-[11px] text-slate-600 dark:text-slate-300 m-0 mb-3 leading-relaxed">Remove <strong>toda a conta</strong>: login, cadastro no painel do administrador e dados. Você volta para a tela inicial e precisará se cadastrar de novo para usar o app.</p>
+      <input type="password" id="setDeletePass" placeholder="Digite sua senha para confirmar" class="settings-input mb-2" autocomplete="current-password">
+      <button type="button" onclick="deleteMyAccount()" class="w-full px-4 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-extrabold shadow-lg shadow-rose-500/25 active:scale-[.98]"><i class="fas fa-trash-alt mr-2"></i>Eliminar minha conta de vez</button>
+    </div>
+    <div class="h-2"></div>
+  </div>
 </div>
-<div class="settings-section" id="settingsPasswordBox">
-<p class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Segurança · alterar senha</p>
-<p class="text-[11px] text-slate-500 m-0 mb-2">Todos os usuários podem trocar a própria senha.</p>
-<input type="password" id="setPassCurrent" placeholder="Senha atual" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none mb-2" autocomplete="current-password">
-<input type="password" id="setPassNew" placeholder="Nova senha (mín. 6 caracteres)" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none mb-2" autocomplete="new-password">
-<input type="password" id="setPassNew2" placeholder="Confirmar nova senha" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none mb-2" autocomplete="new-password">
-<button type="button" onclick="changeUserPassword()" class="w-full px-3 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold"><i class="fas fa-key mr-1"></i>Salvar nova senha</button>
 </div>
-<div class="settings-section">
-<p class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Dados</p>
-<button onclick="exportJSON()" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm mb-2"><i class="fas fa-download mr-2"></i>Exportar backup JSON</button>
-<button onclick="clearAllData()" class="w-full px-4 py-2.5 rounded-xl border border-red-300 text-red-500 text-sm"><i class="fas fa-trash mr-2"></i>Apagar todos os dados</button>
-</div>
-<div class="settings-section border-rose-300 dark:border-rose-800" id="settingsDeleteAccountBox" style="border-color:#fda4af">
-<p class="text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 mb-2"><i class="fas fa-exclamation-triangle mr-1"></i>Zona de perigo · excluir conta</p>
-<p class="text-[11px] text-slate-500 m-0 mb-3 leading-relaxed">Apaga seu acesso, seus dados neste aparelho e remove seu cadastro do painel do administrador. Não tem volta.</p>
-<input type="password" id="setDeletePass" placeholder="Sua senha atual" class="w-full px-3 py-2.5 rounded-xl border border-rose-300 dark:border-rose-800 bg-white dark:bg-slate-900 text-sm outline-none mb-2" autocomplete="current-password">
-<button type="button" onclick="deleteMyAccount()" class="w-full px-4 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 active:scale-[.98] text-white text-sm font-extrabold shadow-lg shadow-rose-500/20"><i class="fas fa-user-slash mr-2"></i>Deletar minha conta</button>
-</div>
-</div></div></div>
 <script>
 
 const SB_URL="https://kzmhwwgjntkuroowsjtp.supabase.co";
@@ -3080,20 +3126,29 @@ function renderCharts(){
   }
 }
 
-function openSettings(){document.getElementById("settingsModal").classList.remove("hidden");try{loadAiSettings()}catch(e){}
-try{var a=document.getElementById("setAdvancedNav");if(a)a.checked=true;
-var d=document.getElementById("setDarkTheme");if(d)d.checked=document.documentElement.classList.contains("dark")}catch(e){}
-try{
-  var delBox=document.getElementById("settingsDeleteAccountBox");
-  if(delBox){
-    var hide=typeof isAdmin==="function" && isAdmin();
-    delBox.style.display=hide?"none":"";
-  }
-  var dp=document.getElementById("setDeletePass"); if(dp) dp.value="";
-}catch(e){}}
+function openSettings(){
+  var m=document.getElementById("settingsModal");
+  if(m) m.classList.remove("hidden");
+  try{loadAiSettings()}catch(e){}
+  try{
+    var a=document.getElementById("setAdvancedNav"); if(a) a.checked=true;
+    var d=document.getElementById("setDarkTheme"); if(d) d.checked=document.documentElement.classList.contains("dark");
+  }catch(e){}
+  try{
+    var delBox=document.getElementById("settingsDeleteAccountBox");
+    if(delBox){
+      var hide=typeof isAdmin==="function" && isAdmin();
+      delBox.style.display=hide?"none":"";
+    }
+    var dp=document.getElementById("setDeletePass"); if(dp) dp.value="";
+    // rola o corpo para o topo e garante barra de rolagem visível
+    var body=document.querySelector("#settingsModal .settings-body");
+    if(body){ body.scrollTop=0; }
+  }catch(e){}
+}
 function closeSettings(){document.getElementById("settingsModal").classList.add("hidden")}
 
-function clearAllData(){if(!confirm("Apagar TODOS os dados?"))return;if(!confirm("Tem certeza?"))return;T=[];C=DC.slice();L={};R=[];RC=[];RU=[];LN={};sd("transactions",T);sd("categories",C);sd("limits",L);sd("reminders",R);sd("recurring",RC);sd("rules",RU);sd("learned",LN);toast("Dados apagados");closeSettings();renderDashboard()}
+function clearAllData(){if(!confirm("Limpar só os dados financeiros (lançamentos, metas etc.)?\n\nA conta continua existindo. Para apagar a conta use \"Eliminar minha conta de vez\"."))return;if(!confirm("Confirma limpar os dados?"))return;T=[];C=DC.slice();L={};R=[];RC=[];RU=[];LN={};sd("transactions",T);sd("categories",C);sd("limits",L);sd("reminders",R);sd("recurring",RC);sd("rules",RU);sd("learned",LN);toast("Dados apagados");closeSettings();renderDashboard()}
 
 function wipeLocalWorkspaceForLogin(login){
   login=String(login||"").toLowerCase().trim();
@@ -3117,65 +3172,46 @@ async function deleteMyAccount(){
       return;
     }
 
-    // Resolve login real (U pode ser e-mail da sessão nuvem)
     var raw=String(U||localStorage.getItem("fp_currentUser")||"").trim();
     var login=raw.toLowerCase();
     var emailHint="";
     try{
       if(typeof findLocalAccount==="function"){
         var found=findLocalAccount(raw);
-        if(found && found.login) login=String(found.login).toLowerCase();
-        if(found && found.acc && found.acc.email) emailHint=String(found.acc.email).toLowerCase();
+        if(found&&found.login) login=String(found.login).toLowerCase();
+        if(found&&found.acc&&found.acc.email) emailHint=String(found.acc.email).toLowerCase();
       }
     }catch(e){}
     try{
       var regFind=typeof getClientsRegistrySafe==="function"?getClientsRegistrySafe():JSON.parse(localStorage.getItem("fp_clients_registry")||"[]");
-      for(var ri=0;ri<(regFind||[]).length;ri++){
-        var rc=regFind[ri];
+      (regFind||[]).forEach(function(rc){
         var rlg=String(rc.login||"").toLowerCase();
         var rem=String(rc.email||"").toLowerCase();
         if(rlg===login || rem===login || rem===raw.toLowerCase()){
-          login=rlg||login;
-          emailHint=emailHint||rem;
-          break;
+          login=rlg||login; emailHint=emailHint||rem;
         }
-      }
+      });
     }catch(e){}
     try{
       var usersMap=JSON.parse(localStorage.getItem("fp_users")||"{}");
-      if(!usersMap[login]){
-        Object.keys(usersMap).forEach(function(k){
-          var a=usersMap[k];
-          if(!a) return;
-          if(String(a.email||"").toLowerCase()===login || String(k).toLowerCase()===login){
-            login=String(k).toLowerCase();
-            emailHint=emailHint||String(a.email||"").toLowerCase();
-          }
-        });
-      }
+      Object.keys(usersMap).forEach(function(k){
+        var a=usersMap[k]; if(!a) return;
+        if(String(k).toLowerCase()===login || String(a.email||"").toLowerCase()===login || String(a.email||"").toLowerCase()===raw.toLowerCase()){
+          login=String(k).toLowerCase();
+          emailHint=emailHint||String(a.email||"").toLowerCase();
+        }
+      });
     }catch(e){}
 
-    if(!login){
-      toast("Faça login para excluir a conta","error");
-      return;
-    }
-    if(login===(typeof ADMIN_EMAIL!=="undefined"?ADMIN_EMAIL.toLowerCase():"") ||
-       raw.toLowerCase()===(typeof ADMIN_EMAIL!=="undefined"?ADMIN_EMAIL.toLowerCase():"")){
-      toast("Conta protegida","error");
-      return;
-    }
+    if(!login){ toast("Faça login para excluir a conta","error"); return; }
+    var adminEm=(typeof ADMIN_EMAIL!=="undefined"?ADMIN_EMAIL.toLowerCase():"");
+    if(login===adminEm || raw.toLowerCase()===adminEm){ toast("Conta protegida","error"); return; }
 
     var passEl=document.getElementById("setDeletePass");
     var pass=String((passEl&&passEl.value)||"");
-    if(!pass){
-      toast("Digite sua senha para confirmar","error");
-      if(passEl) try{passEl.focus()}catch(e){}
-      return;
-    }
+    if(!pass){ toast("Digite sua senha para confirmar","error"); if(passEl) try{passEl.focus()}catch(e){} return; }
 
-    // Valida senha em várias fontes (local, registry, nuvem)
-    var okPass=false;
-    var hasStoredPass=false;
+    var okPass=false, hasStoredPass=false;
     try{
       var acc=(typeof getAccount==="function"?getAccount(login):null)||null;
       var stored=acc?(acc.pass||acc.password||""):"";
@@ -3183,9 +3219,8 @@ async function deleteMyAccount(){
     }catch(e){}
     if(!okPass){
       try{
-        var reg=[];
-        try{ reg=typeof getClientsRegistrySafe==="function"?getClientsRegistrySafe():JSON.parse(localStorage.getItem("fp_clients_registry")||"[]"); }catch(e2){}
-        var c=(reg||[]).find(function(x){
+        var regP=typeof getClientsRegistrySafe==="function"?getClientsRegistrySafe():JSON.parse(localStorage.getItem("fp_clients_registry")||"[]");
+        var c=(regP||[]).find(function(x){
           return (x.login||"").toLowerCase()===login || String(x.email||"").toLowerCase()===login || String(x.email||"").toLowerCase()===emailHint;
         });
         if(c){
@@ -3194,48 +3229,37 @@ async function deleteMyAccount(){
         }
       }catch(e){}
     }
-    // tenta Auth Supabase com e-mail real / synth
     if(!okPass && typeof sb!=="undefined" && sb){
       var tryEmails=[];
-      if(emailHint && emailHint.indexOf("@")>=0) tryEmails.push(emailHint);
+      if(emailHint&&emailHint.indexOf("@")>=0) tryEmails.push(emailHint);
       if(raw.indexOf("@")>=0) tryEmails.push(raw.toLowerCase());
-      try{
-        var acc3=typeof getAccount==="function"?getAccount(login):null;
-        if(acc3&&acc3.email) tryEmails.push(String(acc3.email).toLowerCase());
-      }catch(e){}
+      try{ var a3=typeof getAccount==="function"?getAccount(login):null; if(a3&&a3.email) tryEmails.push(String(a3.email).toLowerCase()); }catch(e){}
       tryEmails.push(login+"@financas.local");
       tryEmails.push(login.replace(/[^a-z0-9]/g,"")+"@financas.local");
       tryEmails=tryEmails.filter(function(v,i,a){return v&&a.indexOf(v)===i});
       for(var ti=0;ti<tryEmails.length && !okPass;ti++){
         try{
           var authRes=await sb.auth.signInWithPassword({email:tryEmails[ti],password:pass});
-          if(!authRes.error && authRes.data && authRes.data.user){
-            okPass=true;
-            cloudUser=authRes.data.user;
-          }
+          if(!authRes.error && authRes.data && authRes.data.user){ okPass=true; cloudUser=authRes.data.user; }
         }catch(e){}
       }
     }
-    // Sem senha salva neste aparelho: exige confirmação digitando DELETAR + senha informada
     if(!okPass && !hasStoredPass){
-      var typed=prompt('Não encontramos a senha salva neste aparelho.\\nPara confirmar a exclusão permanente, digite DELETAR:');
+      var typed=prompt("Para confirmar a exclusão permanente da conta, digite DELETAR:");
       if(String(typed||"").trim().toUpperCase()==="DELETAR") okPass=true;
     }
-    if(!okPass){
-      toast("Senha incorreta. Confira e tente de novo.","error");
-      return;
-    }
+    if(!okPass){ toast("Senha incorreta","error"); return; }
 
-    if(!confirm("Tem certeza que deseja DELETAR sua conta?\\n\\n• Seus dados serão apagados\\n• Você será desconectado\\n• Seu cadastro some do painel do administrador\\n\\nEsta ação não pode ser desfeita.")) return;
-    if(!confirm("Última confirmação: excluir permanentemente a conta \""+login+"\"?")) return;
+    if(!confirm("ELIMINAR CONTA DE VEZ?\\n\\nIsso apaga o login, remove você do painel do administrador e encerra o acesso.\\nVocê voltará para a tela de entrada.")) return;
+    if(!confirm("Confirma excluir permanentemente a conta \\""+login+"\\"?")) return;
 
-    toast("Excluindo conta…","info");
-    var clientId="";
-    var email=emailHint||"";
+    toast("Eliminando conta…","info");
+
+    var clientId="", email=emailHint||"";
     try{
       var reg0=typeof getClientsRegistrySafe==="function"?getClientsRegistrySafe():JSON.parse(localStorage.getItem("fp_clients_registry")||"[]");
       var hit=(reg0||[]).find(function(c){
-        return (c.login||"").toLowerCase()===login || String(c.email||"").toLowerCase()===login || String(c.email||"").toLowerCase()===email;
+        return (c.login||"").toLowerCase()===login || String(c.email||"").toLowerCase()===login || (email&&String(c.email||"").toLowerCase()===email);
       });
       if(hit){
         clientId=String(hit.id||"");
@@ -3243,12 +3267,35 @@ async function deleteMyAccount(){
         if(hit.login) login=String(hit.login).toLowerCase();
       }
     }catch(e){}
-    try{
-      var acc2=typeof getAccount==="function"?getAccount(login):null;
-      if(acc2 && acc2.email) email=email||String(acc2.email);
-    }catch(e){}
+    try{ var acc2=typeof getAccount==="function"?getAccount(login):null; if(acc2&&acc2.email) email=email||String(acc2.email); }catch(e){}
 
-    // 1) registry local
+    // --- CLOUD: apaga cadastro do painel (clients) e dados do usuário ---
+    var cloudOk=false;
+    if(typeof sb!=="undefined" && sb){
+      try{
+        if(clientId){ var d1=await sb.from("clients").delete().eq("id", clientId); if(!d1.error) cloudOk=true; }
+        if(login){ var d2=await sb.from("clients").delete().eq("login", login); if(!d2.error) cloudOk=true; }
+        if(email){ var d3=await sb.from("clients").delete().eq("email", email); if(!d3.error) cloudOk=true; }
+        try{ await sb.from("clients").delete().eq("email", login+"@financas.local"); }catch(e){}
+        // fallback se RLS bloquear DELETE: marca como excluído
+        if(!cloudOk){
+          try{
+            var up={status:"excluido", temp_password:"", password:""};
+            if(login){ var u1=await sb.from("clients").update(up).eq("login", login); if(!u1.error) cloudOk=true; }
+            if(email){ var u2=await sb.from("clients").update(up).eq("email", email); if(!u2.error) cloudOk=true; }
+            if(clientId){ var u3=await sb.from("clients").update(up).eq("id", clientId); if(!u3.error) cloudOk=true; }
+          }catch(e){}
+        }
+        if(cloudUser && cloudUser.id && String(cloudUser.id).indexOf("master-local")<0){
+          var uid=cloudUser.id;
+          try{ await sb.from("transactions").delete().eq("user_id", uid); }catch(e){}
+          try{ await sb.from("categories").delete().eq("user_id", uid); }catch(e){}
+          try{ await sb.from("app_state").delete().eq("user_id", uid); }catch(e){}
+        }
+      }catch(e){ console.warn("delete account cloud", e); }
+    }
+
+    // --- LOCAL: remove conta de TODOS os mapas ---
     try{
       var reg=typeof getClientsRegistry==="function"?getClientsRegistry():JSON.parse(localStorage.getItem("fp_clients_registry")||"[]");
       reg=(reg||[]).filter(function(c){
@@ -3263,81 +3310,88 @@ async function deleteMyAccount(){
       else localStorage.setItem("fp_clients_registry", JSON.stringify(reg));
     }catch(e){}
 
-    // 2) fp_users
     try{
       var users=JSON.parse(localStorage.getItem("fp_users")||"{}");
       Object.keys(users).forEach(function(k){
         var a=users[k];
-        if(k.toLowerCase()===login) delete users[k];
-        else if(email && a && String(a.email||"").toLowerCase()===email) delete users[k];
+        if(String(k).toLowerCase()===login) delete users[k];
+        else if(email && a && String(a.email||"").toLowerCase()===String(email).toLowerCase()) delete users[k];
+        else if(String(k).toLowerCase()===raw.toLowerCase()) delete users[k];
       });
       localStorage.setItem("fp_users", JSON.stringify(users));
     }catch(e){}
 
-    // 3) paid list
     try{
       var paid=JSON.parse(localStorage.getItem("fp_paid_logins")||"[]");
-      paid=(paid||[]).filter(function(x){ return String(x).toLowerCase()!==login; });
+      paid=(paid||[]).filter(function(x){ return String(x).toLowerCase()!==login && String(x).toLowerCase()!==raw.toLowerCase(); });
       localStorage.setItem("fp_paid_logins", JSON.stringify(paid));
     }catch(e){}
 
-    // 4) tombstone
     try{ if(typeof adminMarkDeleted==="function") adminMarkDeleted(login, clientId, email); }catch(e){}
 
-    // 5) workspace local
-    try{ if(typeof wipeLocalWorkspaceForLogin==="function") wipeLocalWorkspaceForLogin(login); }catch(e){}
-    try{ if(email) wipeLocalWorkspaceForLogin(email); }catch(e){}
+    try{ if(typeof wipeLocalWorkspaceForLogin==="function"){ wipeLocalWorkspaceForLogin(login); if(email) wipeLocalWorkspaceForLogin(email); if(raw) wipeLocalWorkspaceForLogin(raw.toLowerCase()); } }catch(e){}
 
-    // 6) nuvem clients + dados
-    var cloudOk=false;
-    if(typeof sb!=="undefined" && sb){
-      try{
-        if(clientId){
-          var d1=await sb.from("clients").delete().eq("id", clientId);
-          if(!d1.error) cloudOk=true;
-        }
-        if(login){
-          var d2=await sb.from("clients").delete().eq("login", login);
-          if(!d2.error) cloudOk=true;
-        }
-        if(email){
-          var d3=await sb.from("clients").delete().eq("email", email);
-          if(!d3.error) cloudOk=true;
-        }
-        if(cloudUser && cloudUser.id && String(cloudUser.id).indexOf("master-local")<0){
-          var uid=cloudUser.id;
-          try{ await sb.from("transactions").delete().eq("user_id", uid); }catch(e){}
-          try{ await sb.from("categories").delete().eq("user_id", uid); }catch(e){}
-          try{ await sb.from("app_state").delete().eq("user_id", uid); }catch(e){}
-        }
-      }catch(e){ console.warn("deleteMyAccount cloud", e); }
-    }
+    // remove chaves soltas relacionadas
+    try{
+      var killKeys=[];
+      for(var i=0;i<localStorage.length;i++){
+        var kk=localStorage.key(i);
+        if(!kk) continue;
+        var low=kk.toLowerCase();
+        if(low.indexOf("fp_"+login+"_")===0) killKeys.push(kk);
+        if(email && low.indexOf("fp_"+String(email).toLowerCase()+"_")===0) killKeys.push(kk);
+      }
+      killKeys.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+    }catch(e){}
 
-    // 7) cache admin
     try{
       window._adminClientsCache=(window._adminClientsCache||[]).filter(function(c){
         var lg=String(c.login||"").toLowerCase();
         var em=String(c.email||"").toLowerCase();
         if(lg===login) return false;
         if(clientId && String(c.id)===clientId) return false;
-        if(email && em===email) return false;
+        if(email && em===String(email).toLowerCase()) return false;
         return true;
       });
     }catch(e){}
 
-    // 8) logout
+    // encerra sessão
     try{ if(sb) await sb.auth.signOut(); }catch(e){}
     try{ localStorage.removeItem("fp_currentUser"); }catch(e){}
+    try{ sessionStorage.clear(); }catch(e){}
+
     U=null; cloudUser=null;
     T=[]; C=(typeof DC!=="undefined"?DC.slice():[]); L={}; R=[]; RC=[]; RU=[]; LN={}; G=[]; VR=[];
+
     try{ closeSettings(); }catch(e){}
-    try{
-      document.getElementById("appScreen").classList.add("hidden");
-      document.getElementById("loginScreen").classList.remove("hidden");
-      if(typeof setAuthTab==="function") setAuthTab("login");
-    }catch(e){}
     try{ if(passEl) passEl.value=""; }catch(e){}
-    toast(cloudOk?"Conta excluída e removida do painel do administrador":"Conta excluída","success");
+
+    // Volta FORÇADO para a tela inicial de login
+    try{
+      var app=document.getElementById("appScreen");
+      var loginScr=document.getElementById("loginScreen");
+      if(app){ app.classList.add("hidden"); app.style.display="none"; }
+      if(loginScr){ loginScr.classList.remove("hidden"); loginScr.style.display=""; }
+      document.body.classList.remove("app-locked","splash-hide");
+      if(typeof setAuthTab==="function") setAuthTab("login");
+      var lu=document.getElementById("loginUser"); if(lu) lu.value="";
+      var lp=document.getElementById("loginPass"); if(lp) lp.value="";
+      var le=document.getElementById("loginError"); if(le){ le.classList.add("hidden"); le.textContent=""; }
+    }catch(e){}
+
+    toast(cloudOk?"Conta eliminada. Cadastro removido do painel.":"Conta eliminada. Faça um novo cadastro para voltar.","success");
+
+    // Garante que não resta sessão fantasma
+    setTimeout(function(){
+      try{
+        localStorage.removeItem("fp_currentUser");
+        U=null; cloudUser=null;
+        var app2=document.getElementById("appScreen");
+        var login2=document.getElementById("loginScreen");
+        if(app2){ app2.classList.add("hidden"); }
+        if(login2){ login2.classList.remove("hidden"); }
+      }catch(e){}
+    }, 300);
   }catch(e){
     console.error(e);
     toast("Erro ao excluir conta: "+(e.message||e),"error");
@@ -4042,7 +4096,16 @@ async function fetchAllClientsCloud(){
   }
   window._lastClientsCloudError=errMsg||"";
   window._lastClientsCloudCount=(out||[]).length;
-  return (out||[]).map(mapCloudClient).filter(Boolean);
+  return (out||[]).map(mapCloudClient).filter(function(c){
+    if(!c) return false;
+    var st=String(c.status||"").toLowerCase();
+    if(st==="excluido"||st==="deleted"||st==="excluído") return false;
+    try{
+      var delSet=typeof adminGetDeletedSet==="function"?adminGetDeletedSet():{};
+      if(c.login && delSet[String(c.login).toLowerCase()]) return false;
+    }catch(e){}
+    return true;
+  });
 }
 function mergeClientLists(localList, cloudList){
   var map={};
@@ -4247,7 +4310,9 @@ async function loadClients(){
     var delSet=typeof adminGetDeletedSet==="function"?adminGetDeletedSet():{};
     reg=(reg||[]).filter(function(c){
       var lg=String(c.login||"").toLowerCase();
+      var st=String(c.status||"").toLowerCase();
       if(lg && delSet[lg]) return false;
+      if(st==="excluido"||st==="deleted"||st==="excluído") return false;
       return true;
     });
   }catch(e){}

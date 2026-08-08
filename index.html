@@ -964,6 +964,27 @@ body.app-locked #paywallModal { display: block !important; }
     </div>
   </div>
 </div>
+
+<div id="apkWelcomeModal" class="fixed inset-0 z-[105] hidden">
+  <div class="absolute inset-0 bg-black/60" onclick="dismissApkWelcome()"></div>
+  <div class="absolute inset-x-4 top-1/2 -translate-y-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden relative z-10">
+    <div class="p-5 bg-gradient-to-br from-emerald-500 to-teal-600 text-white">
+      <div class="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center mb-3"><i class="fas fa-mobile-alt text-xl"></i></div>
+      <p class="text-xs font-bold uppercase tracking-wider text-emerald-100">App instalado</p>
+      <h3 class="text-xl font-extrabold mt-1">Bem-vindo ao Finanças Smart</h3>
+      <p class="text-sm text-emerald-50 mt-1">Você está no aplicativo Android. Os dados e funções são os mesmos da versão web, com notificações e atalhos do celular.</p>
+    </div>
+    <div class="p-5 space-y-3">
+      <div class="text-xs text-slate-500 space-y-1.5">
+        <p><i class="fas fa-check text-emerald-500 mr-1.5"></i>Lançamentos por voz e texto</p>
+        <p><i class="fas fa-check text-emerald-500 mr-1.5"></i>Lembretes com aviso no celular</p>
+        <p><i class="fas fa-check text-emerald-500 mr-1.5"></i>Permita notificações para não perder o vencimento</p>
+      </div>
+      <button type="button" onclick="dismissApkWelcome(true)" class="w-full btn-primary text-white py-3.5 rounded-2xl text-sm font-bold">Começar</button>
+      <button type="button" onclick="dismissApkWelcome(false)" class="w-full py-2 text-sm text-slate-500">Fechar</button>
+    </div>
+  </div>
+</div>
 <div id="extratoViewerModal" class="fixed inset-0 z-[95] hidden">
   <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onclick="closeExtratoViewer()"></div>
   <div class="absolute inset-0 sm:inset-4 md:inset-8 bg-white dark:bg-slate-900 sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative z-10" onclick="event.stopPropagation()">
@@ -2440,6 +2461,73 @@ function maybeAskPermissions(){
   }catch(e){}
   setTimeout(function(){ showPermModal(); }, 900);
 }
+function isAndroidApp(){
+  try{
+    if(window.AndroidBridge) return true;
+  }catch(e){}
+  try{
+    if(window.Capacitor){
+      if(typeof Capacitor.isNativePlatform==="function" && Capacitor.isNativePlatform()) return true;
+      if(Capacitor.getPlatform && String(Capacitor.getPlatform()).toLowerCase()==="android") return true;
+    }
+  }catch(e){}
+  try{
+    var ua=navigator.userAgent||"";
+    // WebView Android clássico
+    if(/; wv\)/i.test(ua)) return true;
+    if(/Android/i.test(ua) && /Version\/[\d.]+/i.test(ua) && !/Chrome\/\d+\.0\.0\.0/i.test(ua) && window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
+  }catch(e){}
+  try{
+    // flag opcional injetada pelo APK: window.FS_IS_APK = true
+    if(window.FS_IS_APK===true || window.FS_NATIVE_APP===true) return true;
+  }catch(e){}
+  return false;
+}
+function showApkWelcomeModal(){
+  var m=document.getElementById("apkWelcomeModal");
+  if(m) m.classList.remove("hidden");
+}
+function dismissApkWelcome(startPerm){
+  try{ localStorage.setItem("fp_apk_welcome_v1","1"); }catch(e){}
+  var m=document.getElementById("apkWelcomeModal");
+  if(m) m.classList.add("hidden");
+  // opcional: após boas-vindas, pede permissões se ainda não pediu
+  if(startPerm){
+    try{
+      if(localStorage.getItem("fp_perm_asked")!=="1"){
+        setTimeout(function(){ showPermModal(); }, 400);
+      }
+    }catch(e){}
+  }
+  // alerta nativo se a ponte existir
+  try{
+    if(window.AndroidBridge && AndroidBridge.showAlert){
+      // já mostrou modal web; não duplica
+    }
+  }catch(e){}
+}
+function maybeShowApkWelcome(){
+  try{
+    if(!isAndroidApp()) return;
+    if(localStorage.getItem("fp_apk_welcome_v1")==="1") return;
+  }catch(e){ return; }
+  // espera um pouco para não brigar com splash/login
+  setTimeout(function(){
+    try{
+      // se ainda estiver na tela de login, não mostra
+      var app=document.getElementById("appScreen");
+      if(app && app.classList.contains("hidden")) return;
+      showApkWelcomeModal();
+      // tenta também notificação/toast nativo
+      try{
+        if(window.AndroidBridge && AndroidBridge.showNotification){
+          AndroidBridge.showNotification("Finanças Smart", "App pronto! Bem-vindo.");
+        }
+      }catch(e){}
+      try{ toast("Você está no app Android","info"); }catch(e){}
+    }catch(e){}
+  }, 1200);
+}
 function notifyLocal(title, body){
   title = title || "Finanças Smart";
   body = body || "";
@@ -2915,7 +3003,7 @@ async function startAppCloud(user){
     try{ setTimeout(function(){ try{ syncMyProfileToCloud(); }catch(e){} }, 2500); }catch(e){}
     try{ setTimeout(function(){ try{ syncMyProfileToCloud(); }catch(e){} }, 5000); }catch(e){}
   }
-  updateAdminNav();applyNavMode();maybeShowOnboard();try{maybeAskPermissions()}catch(e){}toast("Conectado à nuvem","info");
+  updateAdminNav();applyNavMode();maybeShowOnboard();try{maybeShowApkWelcome()}catch(e){}try{maybeAskPermissions()}catch(e){}toast("Conectado à nuvem","info");
   try{startFsTickerLoop()}catch(e){}
   try{updatePaymentNav()}catch(e){}
   try{startVitalicioWatch()}catch(e){}
@@ -3047,7 +3135,7 @@ async function logout(){
 }
 
 
-function startApp(user){U=user;if(user&&user.toLowerCase()===ADMIN_EMAIL.toLowerCase()&&!cloudUser){cloudUser={email:ADMIN_EMAIL,id:"master-local"}}try{if(user&&user.toLowerCase()!==ADMIN_EMAIL.toLowerCase())ensureClientWorkspace(String(user).toLowerCase());}catch(e){}document.getElementById("loginScreen").classList.add("hidden");document.getElementById("appScreen").classList.remove("hidden");document.getElementById("userDisplay").textContent=user;T=gd("transactions");C=gd("categories",null);if(!C||!C.length){C=DC.slice();sd("categories",C)}L=gd("limits",{});R=gd("reminders");RC=gd("recurring");RU=gd("rules");LN=gd("learned",{});G=gd("goals");VR=gd("valueRules");applyTheme();const sc=localStorage.getItem("fp_primaryColor");if(sc)setPrimaryColor(sc);document.getElementById("reminderDate").value=today();processRecurring();try{processReminders()}catch(e){}try{startReminderWatch()}catch(e){}if(typeof isAdmin==="function"&&isAdmin()){showSection("admin");}else{showSection("dashboard");}updateAdminNav();applyNavMode();maybeShowOnboard();try{maybeAskPermissions()}catch(e){}try{startFsTickerLoop()}catch(e){}try{updatePaymentNav()}catch(e){}try{startVitalicioWatch()}catch(e){}try{Promise.resolve(refreshPaidStatusFromCloud()).finally(function(){try{enforceAccessGate()}catch(e){}})}catch(e){try{enforceAccessGate()}catch(e2){}}if(isAdmin()){
+function startApp(user){U=user;if(user&&user.toLowerCase()===ADMIN_EMAIL.toLowerCase()&&!cloudUser){cloudUser={email:ADMIN_EMAIL,id:"master-local"}}try{if(user&&user.toLowerCase()!==ADMIN_EMAIL.toLowerCase())ensureClientWorkspace(String(user).toLowerCase());}catch(e){}document.getElementById("loginScreen").classList.add("hidden");document.getElementById("appScreen").classList.remove("hidden");document.getElementById("userDisplay").textContent=user;T=gd("transactions");C=gd("categories",null);if(!C||!C.length){C=DC.slice();sd("categories",C)}L=gd("limits",{});R=gd("reminders");RC=gd("recurring");RU=gd("rules");LN=gd("learned",{});G=gd("goals");VR=gd("valueRules");applyTheme();const sc=localStorage.getItem("fp_primaryColor");if(sc)setPrimaryColor(sc);document.getElementById("reminderDate").value=today();processRecurring();try{processReminders()}catch(e){}try{startReminderWatch()}catch(e){}if(typeof isAdmin==="function"&&isAdmin()){showSection("admin");}else{showSection("dashboard");}updateAdminNav();applyNavMode();maybeShowOnboard();try{maybeShowApkWelcome()}catch(e){}try{maybeAskPermissions()}catch(e){}try{startFsTickerLoop()}catch(e){}try{updatePaymentNav()}catch(e){}try{startVitalicioWatch()}catch(e){}try{Promise.resolve(refreshPaidStatusFromCloud()).finally(function(){try{enforceAccessGate()}catch(e){}})}catch(e){try{enforceAccessGate()}catch(e2){}}if(isAdmin()){
   try{ loadClients().catch(function(){}); }catch(e){}
   try{ startAdminClientsWatch(); }catch(e){}
   try{ startAdminClientsRealtime(); }catch(e){}

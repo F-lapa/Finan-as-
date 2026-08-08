@@ -1112,13 +1112,28 @@ function ensureAccountTrial(login){
   var key=String(login||U||"").toLowerCase().trim();
   if(!key) return null;
   var acc=getAccount(key);
-  if(!acc) return null;
-  if(acc.paid===true) return acc;
   var now=Date.now();
+  // Cria conta local mínima se ainda não existir (não bloqueia o trial)
+  if(!acc){
+    var ends0=new Date(now + 7*24*60*60*1000).toISOString();
+    acc=upsertAccount(key,{
+      login:key,
+      name:key,
+      email:"",
+      pass:"",
+      password:"",
+      paid:false,
+      paymentPending:false,
+      createdAt:new Date(now).toISOString(),
+      trialEnds:ends0
+    });
+    return acc;
+  }
+  if(acc.paid===true) return acc;
   var created=acc.createdAt ? new Date(acc.createdAt).getTime() : NaN;
-  if(isNaN(created)) created = now;
+  if(isNaN(created) || created<=0) created = now;
   var ends=acc.trialEnds ? new Date(acc.trialEnds).getTime() : NaN;
-  // se não tem trialEnds, ou é inválido, ou termina ANTES do cadastro (dado inconsistente)
+  // Sem trialEnds ou inconsistente: 7 dias a partir do cadastro
   if(isNaN(ends) || ends < created){
     ends = created + 7*24*60*60*1000;
     acc = upsertAccount(key, {
@@ -1127,15 +1142,16 @@ function ensureAccountTrial(login){
       paid: false,
       pass: acc.pass||acc.password||"",
       password: acc.pass||acc.password||"",
-      name: acc.name,
-      email: acc.email
+      name: acc.name||key,
+      email: acc.email||""
     });
   }
   return acc;
 }
 function isTrialActive(acc){
   if(!acc) return false;
-  if(acc.paid===true) return true;
+  // pago não é "trial", mas tem acesso por isAccountPaid
+  if(acc.paid===true) return false;
   if(!acc.trialEnds) return false;
   var t=new Date(acc.trialEnds).getTime();
   if(isNaN(t)) return false;
@@ -1145,7 +1161,6 @@ function hasFullAccess(){
   if(typeof isAdmin==="function"&&isAdmin()) return true;
   var key=String(U||"").toLowerCase().trim();
   if(!key) return false;
-  // liberados globalmente
   try{
     var paidList=JSON.parse(localStorage.getItem("fp_paid_logins")||"[]");
     if(paidList.indexOf(key)>=0){
@@ -1154,25 +1169,10 @@ function hasFullAccess(){
     }
   }catch(e){}
   var acc=null;
-  try{ acc=ensureAccountTrial(key); }catch(e){ acc=getAccount(key); }
-  // Sem conta: tenta criar trial mínimo a partir do registry
-  if(!acc){
-    try{
-      var reg=typeof getClientsRegistrySafe==="function"?getClientsRegistrySafe():[];
-      var hit=(reg||[]).find(function(c){ return (c.login||"").toLowerCase()===key; });
-      if(hit){
-        acc=upsertAccount(key,{
-          name:hit.name||key, email:hit.email||"",
-          pass:hit.password||hit.temp_password||"",
-          trialEnds:hit.trialEnds||hit.trial_ends||(typeof trialEndDate==="function"?trialEndDate():null),
-          paid:!!hit.paid, createdAt:hit.created_at||hit.createdAt||new Date().toISOString()
-        });
-      }
-    }catch(e){}
-  }
+  try{ acc=ensureAccountTrial(key); }catch(e){ try{ acc=getAccount(key); }catch(e2){} }
   if(!acc) return false;
-  if(isAccountPaid(acc)) return true;
-  if(isTrialActive(acc)) return true;
+  if(typeof isAccountPaid==="function" && isAccountPaid(acc)) return true;
+  if(typeof isTrialActive==="function" && isTrialActive(acc)) return true;
   return false;
 }
 function daysLeftTrial(acc){
@@ -1392,16 +1392,22 @@ function startAccessGateWatch(){
 }
 
 function enforceAccessGate(){
-  if(typeof isAdmin==="function"&&isAdmin()){ hidePaywall(); updatePaymentNav(); return true; }
-  try{ ensureAccountTrial(U); }catch(e){}
-  try{ renderTrialPayBanner(); }catch(e){}
-  if(hasFullAccess()){
+  if(typeof isAdmin==="function"&&isAdmin()){
     hidePaywall();
-    updatePaymentNav();
     try{ document.body.classList.remove("app-locked"); }catch(e){}
+    updatePaymentNav();
     return true;
   }
-  // trial expirado ou sem acesso — bloqueia o app
+  try{ ensureAccountTrial(U); }catch(e){}
+  try{ renderTrialPayBanner(); }catch(e){}
+  // Durante os 7 dias: usa normal, sem paywall
+  if(hasFullAccess()){
+    hidePaywall();
+    try{ document.body.classList.remove("app-locked"); }catch(e){}
+    updatePaymentNav();
+    return true;
+  }
+  // Só chega aqui se o trial ACABOU e não pagou
   try{ document.body.classList.add("app-locked"); }catch(e){}
   showPaywall();
   updatePaymentNav();
@@ -3843,8 +3849,23 @@ function isAppLocked(){
     if(typeof isAdmin==="function"&&isAdmin()) return false;
   }catch(e){}
   try{
-    return !hasFullAccess();
-  }catch(e){ return true; }
+    var key=String(U||"").toLowerCase().trim();
+    if(!key) return false;
+    var acc=null;
+    try{ acc=ensureAccountTrial(key); }catch(e){ acc=getAccount(key); }
+    if(!acc) return false;
+    if(typeof isAccountPaid==="function" && isAccountPaid(acc)) return false;
+    try{
+      var paidList=JSON.parse(localStorage.getItem("fp_paid_logins")||"[]");
+      if(paidList.indexOf(key)>=0) return false;
+    }catch(e){}
+    // Em trial = LIBERADO (não trava)
+    if(typeof isTrialActive==="function" && isTrialActive(acc)) return false;
+    // Trial acabou e não pagou = TRAVA
+    return true;
+  }catch(e){
+    return false; // em dúvida, não trava
+  }
 }
 
 function adminClientStatus(c){

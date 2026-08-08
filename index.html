@@ -343,7 +343,7 @@ body.app-locked #paywallModal { display: block !important; }
 <div id="smartEntryBox" class="mb-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4">
 <div class="flex items-center gap-2 mb-2"><i class="fas fa-magic text-primary text-sm"></i><span class="text-sm font-medium">Entrada inteligente</span><span class="text-xs text-slate-400 hidden sm:inline">— digite em linguagem natural</span></div>
 <div class="flex gap-2">
-<input type="text" id="smartInput" placeholder='Fale ou digite: salário 3 mil · paguei 50 no mercado' class="flex-1 min-w-0 px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none" onkeydown="if(event.key==='Enter')parseSmartInput()">
+<input type="text" id="smartInput" placeholder='salário 3 mil · paguei 50 · lembrete aluguel dia 10 1500' class="flex-1 min-w-0 px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none" onkeydown="if(event.key==='Enter')parseSmartInput()">
 <button type="button" id="voiceBtn" onclick="toggleVoiceInput()" class="w-11 h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0 flex items-center justify-center hover:border-indigo-400 hover:text-indigo-600 transition" title="Falar lançamento"><i class="fas fa-microphone"></i></button>
 <button type="button" onclick="parseSmartInput()" class="btn-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium shrink-0"><i class="fas fa-bolt mr-1"></i>Lançar</button>
 </div>
@@ -2353,6 +2353,15 @@ function normalizeVoiceText(t){
     t=t.replace(new RegExp("\\b"+w+"\\b","gi"), String(map[w]));
   });
   t=t.replace(/\bmil\b/gi,"1000");
+  // "3000 e 500" → 3500 (três mil e quinhentos)
+  t=t.replace(/(\d+(?:[.,]\d+)?)\s+e\s+(\d+(?:[.,]\d+)?)/gi,function(_,a,b){
+    var x=pm(a), y=pm(b);
+    if(x>=1000 && y>0 && y<1000) return String(x+y);
+    if(x>=100 && y>0 && y<100) return String(x+y);
+    return _;
+  });
+  t=t.replace(/\b1000000\s+e\s+meio\b/gi,"1500000");
+  t=t.replace(/\bmeio\s+milh(?:[aã]o|[oõ]es|ao|oes)\b/gi,"500000");
   t=t.replace(/\breais?\b/gi," ");
   return t.replace(/\s+/g," ").trim();
 }
@@ -2544,13 +2553,86 @@ function extractAmountFromText(raw){
   }
   if(!candidates.length) return 0;
   candidates.sort(function(a,b){return b-a;});
-  if(candidates[0]>=1000) return candidates[0];
+  if(candidates.length>=2 && candidates[0]>=1000 && candidates[1]<1000){
+    return candidates[0]+candidates[1];
+  }
   return candidates[0];
+}
+function addDaysISO(iso, days){
+  var d=new Date(String(iso)+"T12:00:00");
+  if(isNaN(d.getTime())) d=new Date();
+  d.setDate(d.getDate()+(days||0));
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function parseSmartReminder(raw){
+  var textIn=String(raw||"").trim();
+  var lower=textIn.toLowerCase().normalize("NFC");
+  if(!/(?:lembrete|me\s+lembra|lembrar|agendar|agenda\s|cobran[cç]a)/i.test(lower)) return null;
+  var amount=extractAmountFromText(textIn);
+  var recurring=/todo\s+m[eê]s|mensal|recorrente|todo\s+mes/i.test(lower);
+  var date=null;
+  var dm=lower.match(/\bdia\s+(\d{1,2})\b/);
+  if(dm){
+    var day=Math.min(28, Math.max(1, parseInt(dm[1],10)));
+    var now=new Date();
+    var y=now.getFullYear(), mo=now.getMonth();
+    var candidate=new Date(y, mo, day);
+    var iso=candidate.getFullYear()+"-"+String(candidate.getMonth()+1).padStart(2,"0")+"-"+String(candidate.getDate()).padStart(2,"0");
+    if(iso < today()){
+      candidate=new Date(y, mo+1, day);
+      iso=candidate.getFullYear()+"-"+String(candidate.getMonth()+1).padStart(2,"0")+"-"+String(candidate.getDate()).padStart(2,"0");
+    }
+    date=iso;
+    if(/todo\s+m[eê]s|mensal|recorrente/i.test(lower)) recurring=true;
+  }
+  var dm2=textIn.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+  if(dm2){
+    var dd=dm2[1].padStart(2,"0"), mm=dm2[2].padStart(2,"0");
+    var yy=dm2[3]||String(new Date().getFullYear());
+    if(yy.length===2) yy="20"+yy;
+    date=yy+"-"+mm+"-"+dd;
+  }
+  if(/amanh[aã]/i.test(lower)) date=addDaysISO(today(),1);
+  if(/hoje/i.test(lower) && !date) date=today();
+  if(!date) date=addDaysISO(today(),1);
+  var desc=textIn
+    .replace(/lembrete|me\s+lembra|lembrar\s+de|lembrar|agendar|agenda|cobran[cç]a|todo\s+m[eê]s|mensal|recorrente|de|do|da|no|na|dia\s+\d{1,2}|hoje|amanh[aã]|reais?|r\$/gi," ")
+    .replace(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/g," ")
+    .replace(/(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)/g," ")
+    .replace(/\s+/g," ").trim();
+  if(!desc) desc="Lembrete";
+  desc=desc.charAt(0).toUpperCase()+desc.slice(1);
+  return {
+    id:uid(),
+    description:desc,
+    date:date,
+    amount:amount||0,
+    type:"despesa",
+    recurring:!!recurring,
+    categoryId:detect(desc,"despesa")||"cat_moradia",
+    lastCharged:null,
+    notifiedOn:null,
+    notifiedBefore:null
+  };
 }
 
 function parseSmartInput(){
   const raw=document.getElementById("smartInput").value.trim();
   if(!raw){toast("Ex: salário 3500  ·  mercado 85  ·  uber 22","error");return}
+  try{
+    var rem=parseSmartReminder(raw);
+    if(rem){
+      R.push(rem);
+      sd("reminders",R);
+      document.getElementById("smartInput").value="";
+      toast((rem.recurring?"Lembrete recorrente":"Lembrete")+": "+rem.description+" · "+fd(rem.date)+(rem.amount?" · "+fm(rem.amount):""));
+      try{ renderReminders(); }catch(e){}
+      try{ processReminders(); }catch(e){}
+      try{ showSection("reminders"); }catch(e){}
+      return;
+    }
+  }catch(e){ console.warn("smart reminder", e); }
+
   const lower=normalizeVoiceText(raw).normalize("NFD").replace(/[\u0300-\u036f]/g,"");
   // Receita keywords (even without "recebi")
   const incomeKw=["salario","ordenado","pagamento","folha","vencimento","proventos","holerite","freelance","freela","comissao","comissão","dividendos","rendimento","reembolso","estorno","cashback","premio","heranca","projeto pago","mesada","ajuda de custo","renda","deposito","pix recebido"];
@@ -3465,6 +3547,16 @@ function processReminders(){
         notifiedTitles.push(r.description||"");
       }
       return;
+    }
+    if(typeof addDaysISO==="function" && r.date===addDaysISO(td,1) && r.notifiedBefore!==td){
+      try{
+        notifyLocal(
+          "Lembrete amanhã",
+          (r.description||"Conta")+(r.amount?" · "+fm(r.amount):"")+" · vence em "+fd(r.date)
+        );
+      }catch(e){}
+      r.notifiedBefore=td;
+      sd("reminders",R);
     }
     if(r.date===td && r.notifiedOn!==td){
       dueToday.push(r);
@@ -6796,7 +6888,7 @@ if("serviceWorker" in navigator){
     navigator.serviceWorker.getRegistrations().then(function(regs){
       return Promise.all(regs.map(function(r){ return r.unregister(); }));
     }).then(function(){
-      return navigator.serviceWorker.register("./sw.js?v=9").then(function(reg){
+      return navigator.serviceWorker.register("./sw.js?v=10").then(function(reg){
       try{ reg.update(); }catch(e){}
     });
     }).catch(function(){});

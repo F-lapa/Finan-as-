@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="description" content="Controle inteligente de receitas e despesas"/>
 <title>Finanças Smart</title>
-<!-- FS_SYNC_FIX_V5: client self-delete removes from admin panel -->
+<!-- FS_SYNC_FIX_V6: admin list = cloud only (delete sync) -->
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -4455,7 +4455,6 @@ function startAdminClientsRealtime(){
 async function loadClients(){
   var list=document.getElementById("clientsList");
   if(!list) return;
-  // Não depende de isAdmin falhar por sessão estranha — confere também U/cloudUser
   var adminOk=false;
   try{ adminOk=typeof isAdmin==="function"&&isAdmin(); }catch(e){}
   if(!adminOk){
@@ -4463,24 +4462,21 @@ async function loadClients(){
       var u=(U||localStorage.getItem("fp_currentUser")||"").toLowerCase();
       if(u===String(ADMIN_EMAIL).toLowerCase()) adminOk=true;
       if(cloudUser && cloudUser.email && String(cloudUser.email).toLowerCase()===String(ADMIN_EMAIL).toLowerCase()) adminOk=true;
+      if(cloudUser && cloudUser.id==="master-local") adminOk=true;
     }catch(e){}
   }
   if(!adminOk) return;
 
   list.innerHTML='<div class="py-8 text-center text-slate-400 text-xs"><i class="fas fa-circle-notch fa-spin text-lg mb-2"></i><p>Sincronizando clientes da nuvem…</p></div>';
 
-  // NUVEM = fonte da verdade (REST)
+  // NUVEM = fonte da verdade absoluta
   var cloud=[];
   var errMsg="";
-  try{
-    cloud = await fetchAllClientsCloud();
-  }catch(e){
-    errMsg=String(e.message||e);
-    console.warn("loadClients cloud", e);
-  }
+  try{ cloud = await fetchAllClientsCloud(); }catch(e){ errMsg=String(e.message||e); console.warn("loadClients cloud", e); }
   errMsg = errMsg || window._lastClientsCloudError || "";
+  var cloudOk = !errMsg; // GET respondeu (mesmo que lista vazia)
 
-  // Locais só como complemento (senha etc.)
+  // Registry local só para enriquecer (senha/nome), NÃO para inventar cliente que não está na nuvem
   var local=[];
   try{ local=typeof getClientsRegistry==="function"?getClientsRegistry():JSON.parse(localStorage.getItem("fp_clients_registry")||"[]"); }catch(e){}
   try{
@@ -4501,32 +4497,55 @@ async function loadClients(){
     });
   }catch(e){}
 
-  // Se a nuvem respondeu, ela manda. Locais só preenchem senha/nome faltando.
-  var reg;
-  if((cloud||[]).length || !errMsg){
-    reg = mergeClientLists(local, cloud);
-    // Clientes que existem na nuvem NÃO podem ficar presos em "excluído" local
+  var reg=[];
+  if(cloudOk){
+    // Só quem está na nuvem aparece. Cliente que se auto-excluiu some daqui.
+    var localByLogin={};
+    (local||[]).forEach(function(c){
+      if(c && c.login) localByLogin[String(c.login).toLowerCase()]=c;
+    });
+    reg=(cloud||[]).map(function(c){
+      var lg=String(c.login||"").toLowerCase();
+      var loc=localByLogin[lg];
+      if(!loc) return c;
+      // enriquece senha/nome local sem ressuscitar excluídos
+      return Object.assign({}, c, {
+        password: c.password||c.temp_password||loc.password||loc.temp_password||"",
+        temp_password: c.temp_password||c.password||loc.temp_password||loc.password||"",
+        name: c.name||loc.name||lg,
+        email: c.email||loc.email||"",
+        trialEnds: c.trialEnds||c.trial_ends||loc.trialEnds||loc.trial_ends,
+        paid: !!(c.paid||loc.paid),
+        cloud: true
+      });
+    }).filter(function(c){
+      if(!c || !c.login) return false;
+      if(String(c.login).toLowerCase()===String(ADMIN_EMAIL).toLowerCase()) return false;
+      var st=String(c.status||"").toLowerCase();
+      if(st==="excluido"||st==="deleted"||st==="excluído") return false;
+      return true;
+    });
+    // Limpa tombstones de quem ainda está na nuvem; e grava registry = só nuvem
     try{
-      var delSet = JSON.parse(localStorage.getItem("fp_deleted_clients")||"{}")||{};
+      var delSet=JSON.parse(localStorage.getItem("fp_deleted_clients")||"{}")||{};
       var changed=false;
-      (cloud||[]).forEach(function(c){
+      reg.forEach(function(c){
         var lg=String(c.login||"").toLowerCase();
         if(lg && delSet[lg]){ delete delSet[lg]; changed=true; }
       });
+      // Remove do delSet não é necessário para sumir — já filtramos pela nuvem
       if(changed) localStorage.setItem("fp_deleted_clients", JSON.stringify(delSet));
     }catch(e){}
   } else {
-    reg = local.slice();
+    // Nuvem falhou: fallback local (offline)
+    reg=(local||[]).filter(function(c){
+      if(!c || !c.login) return false;
+      if(String(c.login).toLowerCase()===String(ADMIN_EMAIL).toLowerCase()) return false;
+      var st=String(c.status||"").toLowerCase();
+      if(st==="excluido"||st==="deleted"||st==="excluído") return false;
+      return true;
+    });
   }
-
-  // Filtra só status excluído vindo da nuvem (não tombstone local contra a nuvem)
-  reg=(reg||[]).filter(function(c){
-    if(!c || !c.login) return false;
-    if(String(c.login).toLowerCase()===String(ADMIN_EMAIL).toLowerCase()) return false;
-    var st=String(c.status||"").toLowerCase();
-    if(st==="excluido"||st==="deleted"||st==="excluído") return false;
-    return true;
-  });
 
   try{ if(typeof saveClientsRegistry==="function") saveClientsRegistry(reg); else localStorage.setItem("fp_clients_registry",JSON.stringify(reg)); }catch(e){}
   try{ if(typeof syncUsersFromClients==="function") syncUsersFromClients(reg); }catch(e){}
@@ -4540,10 +4559,10 @@ async function loadClients(){
     var nCloud=window._lastClientsCloudCount||0;
     var bar=document.getElementById("adminSyncInfo");
     if(bar){
-      if(errMsg && !nCloud){
-        bar.innerHTML='<span class="text-amber-700 dark:text-amber-300"><i class="fas fa-exclamation-triangle mr-1"></i>Falha ao ler nuvem: '+esc(errMsg)+'</span>';
+      if(!cloudOk){
+        bar.innerHTML='<span class="text-amber-700 dark:text-amber-300"><i class="fas fa-exclamation-triangle mr-1"></i>Nuvem offline: '+esc(errMsg||"erro")+' · mostrando cache local ('+reg.length+')</span>';
       } else {
-        bar.innerHTML='<span class="text-emerald-600"><i class="fas fa-cloud mr-1"></i>'+nCloud+' na nuvem · '+reg.length+' no painel · atualizado '+new Date().toLocaleTimeString("pt-BR")+'</span>';
+        bar.innerHTML='<span class="text-emerald-600"><i class="fas fa-cloud mr-1"></i>'+nCloud+' na nuvem · '+reg.length+' no painel · '+new Date().toLocaleTimeString("pt-BR")+'</span>';
       }
     }
   }catch(e){}

@@ -1222,6 +1222,118 @@ function saveClientsRegistrySafe(list){
   // também espelho global para o admin
   try{ localStorage.setItem("fp_clients_registry", JSON.stringify(list||[])); }catch(e){}
 }
+
+/** Grava/atualiza cliente na nuvem (Supabase) — essencial para aparecer no painel de outros aparelhos */
+async function pushClientToCloud(info){
+  if(typeof sb==="undefined" || !sb) return {ok:false, error:"Supabase offline"};
+  var login=String(info.login||"").toLowerCase().trim();
+  if(!login) return {ok:false, error:"login vazio"};
+  var name=info.name||login;
+  var email=info.email||"";
+  var pass=info.pass||info.password||info.temp_password||"";
+  var trialEnds=info.trialEnds||info.trial_ends||(typeof trialEndDate==="function"?trialEndDate():new Date(Date.now()+7*864e5).toISOString());
+  var createdAt=info.createdAt||info.created_at||new Date().toISOString();
+  var paid=!!(info.paid===true);
+  var status=paid?"ativo":(info.status||"pendente");
+  if(status==="active") status="pendente";
+  var authId=info.auth_user_id||info.authUserId||null;
+  try{
+    if(!authId && sb.auth){
+      var sess=await sb.auth.getSession();
+      if(sess && sess.data && sess.data.session && sess.data.session.user)
+        authId=sess.data.session.user.id;
+    }
+  }catch(e){}
+
+  var base={
+    login:login,
+    name:name,
+    email:email||null,
+    temp_password:pass||null,
+    status:status,
+    paid:paid,
+    trial_ends:trialEnds,
+    created_at:createdAt
+  };
+  if(authId) base.auth_user_id=authId;
+  if(pass) base.password=pass;
+
+  // Vários formatos por causa de schemas/colunas diferentes
+  var payloads=[
+    Object.assign({}, base),
+    {login:login, name:name, email:email, temp_password:pass, status:status, paid:paid, trial_ends:trialEnds, auth_user_id:authId},
+    {login:login, name:name, email:email, temp_password:pass, status:status, paid:paid, trial_ends:trialEnds},
+    {login:login, name:name, email:email, temp_password:pass, status:status},
+    {login:login, name:name, email:email, status:status, paid:paid},
+    {login:login, name:name, status:status}
+  ];
+  payloads=payloads.map(function(p){
+    var o={};
+    Object.keys(p).forEach(function(k){
+      if(p[k]!==null && p[k]!==undefined && p[k]!=="") o[k]=p[k];
+    });
+    o.login=login;
+    if(paid) o.paid=true; else o.paid=false;
+    return o;
+  });
+
+  var lastErr="";
+  for(var i=0;i<payloads.length;i++){
+    var payload=payloads[i];
+    try{
+      var up=await sb.from("clients").upsert(payload, {onConflict:"login"});
+      if(!up.error){
+        console.log("pushClientToCloud ok upsert", login);
+        return {ok:true, method:"upsert", payload:payload};
+      }
+      lastErr=(up.error && up.error.message)||String(up.error);
+      // se onConflict não existe, tenta insert e depois update
+      var ins=await sb.from("clients").insert(payload);
+      if(!ins.error){
+        console.log("pushClientToCloud ok insert", login);
+        return {ok:true, method:"insert", payload:payload};
+      }
+      lastErr=(ins.error && ins.error.message)||lastErr;
+      var upd=await sb.from("clients").update(payload).eq("login", login);
+      if(!upd.error){
+        console.log("pushClientToCloud ok update", login);
+        return {ok:true, method:"update", payload:payload};
+      }
+      lastErr=(upd.error && upd.error.message)||lastErr;
+    }catch(e){
+      lastErr=String(e.message||e);
+    }
+  }
+  console.warn("pushClientToCloud falhou", login, lastErr);
+  return {ok:false, error:lastErr||"falha ao gravar na nuvem"};
+}
+
+/** Cliente logado sincroniza o próprio perfil na nuvem (garante aparecer no admin) */
+async function syncMyProfileToCloud(){
+  try{
+    if(typeof isAdmin==="function"&&isAdmin()) return;
+    var key=String(U||"").toLowerCase().trim();
+    if(!key) return;
+    var acc=typeof getAccount==="function"?getAccount(key):null;
+    var reg=null;
+    try{
+      var list=typeof getClientsRegistrySafe==="function"?getClientsRegistrySafe():[];
+      reg=(list||[]).find(function(c){ return (c.login||"").toLowerCase()===key; });
+    }catch(e){}
+    var info={
+      login:key,
+      name:(acc&&acc.name)||(reg&&reg.name)||key,
+      email:(acc&&acc.email)||(reg&&reg.email)||"",
+      pass:(acc&&(acc.pass||acc.password))||(reg&&(reg.password||reg.temp_password))||"",
+      trialEnds:(acc&&acc.trialEnds)||(reg&&(reg.trialEnds||reg.trial_ends))||null,
+      createdAt:(acc&&acc.createdAt)||(reg&&(reg.created_at||reg.createdAt))||new Date().toISOString(),
+      paid:!!(acc&&acc.paid),
+      status:(acc&&acc.paid)?"ativo":"pendente"
+    };
+    await pushClientToCloud(info);
+  }catch(e){ console.warn("syncMyProfileToCloud", e); }
+}
+
 function registerClientInAdminPanel(info){
   var reg=getClientsRegistrySafe();
   var login=String(info.login||"").toLowerCase();
@@ -1237,23 +1349,29 @@ function registerClientInAdminPanel(info){
     paid: false,
     paymentPending: false,
     trialEnds: info.trialEnds,
-    created_at: info.createdAt || new Date().toISOString()
+    created_at: info.createdAt || new Date().toISOString(),
+    createdAt: info.createdAt || new Date().toISOString(),
+    cloud: false
   });
   saveClientsRegistrySafe(reg);
-  // tenta nuvem se admin/supabase disponível
   try{
-    if(typeof sb!=="undefined"&&sb){
-      sb.from("clients").upsert({
-        name: info.name,
-        login: login,
-        email: info.email,
-        temp_password: info.pass,
-        status: "pendente",
-        paid: false,
-        trial_ends: info.trialEnds,
-        created_at: info.createdAt || new Date().toISOString()
-      }, {onConflict:"login"}).then(function(){}).catch(function(){});
-    }
+    Promise.resolve(pushClientToCloud({
+      name:info.name, login:login, email:info.email, pass:info.pass,
+      trialEnds:info.trialEnds, createdAt:info.createdAt, paid:false, status:"pendente"
+    })).then(function(r){
+      if(r && r.ok){
+        try{
+          var reg2=getClientsRegistrySafe();
+          reg2=reg2.map(function(c){
+            if((c.login||"").toLowerCase()===login){ c.cloud=true; }
+            return c;
+          });
+          saveClientsRegistrySafe(reg2);
+        }catch(e){}
+      } else {
+        console.warn("registerClient cloud", r && r.error);
+      }
+    });
   }catch(e){}
 }
 
@@ -1304,6 +1422,8 @@ async function doRegister(){
   U=login;
   // Cria usuário no Supabase para sincronização na nuvem
   cloudUser=null;
+  var cloudOk=false;
+  var cloudErr="";
   if(typeof sb!=="undefined" && sb){
     try{
       setAuthStatus("Criando conta na nuvem…");
@@ -1318,64 +1438,47 @@ async function doRegister(){
         var li=await sb.auth.signInWithPassword({email:email,password:pass});
         if(!li.error && li.data && li.data.user){
           cloudUser=li.data.user;
-          try{
-            await sb.from("clients").upsert({
-              name:name, login:login, email:email,
-              temp_password:pass, status:"pendente", paid:false,
-              auth_user_id:li.data.user.id,
-              trial_ends:trialEnds, created_at:createdAt
-            },{onConflict:"login"});
-          }catch(e){}
-          await startAppCloud(li.data.user);
-          U=login;
-          try{document.getElementById("userDisplay").textContent=name||login}catch(e){}
-          applyNavMode();
-          setAuthStatus("");
-          toast("Conta criada! 7 dias grátis · nuvem ok","success");
-          return;
+        } else {
+          cloudErr=res.error.message||"signup falhou";
         }
-        toast("Conta local ok. Nuvem: "+(res.error.message||"falhou"),"info");
       } else if(res.data && res.data.user){
         cloudUser=res.data.user;
+      }
+      // SEMPRE tenta gravar na tabela clients (painel admin em qualquer aparelho)
+      var push=await pushClientToCloud({
+        name:name, login:login, email:email, pass:pass,
+        trialEnds:trialEnds, createdAt:createdAt, paid:false, status:"pendente",
+        authUserId: cloudUser && cloudUser.id
+      });
+      cloudOk=!!(push && push.ok);
+      if(!cloudOk) cloudErr=cloudErr||(push && push.error)||"não gravou no painel";
+      if(cloudUser){
         try{
-          await sb.from("clients").upsert({
-            name:name, login:login, email:email,
-            temp_password:pass, status:"pendente", paid:false,
-            auth_user_id:res.data.user.id,
-            trial_ends:trialEnds, created_at:createdAt
-          },{onConflict:"login"});
-        }catch(e){}
-        if(res.data.session){
-          await startAppCloud(res.data.user);
+          await startAppCloud(cloudUser);
           U=login;
           try{document.getElementById("userDisplay").textContent=name||login}catch(e){}
           applyNavMode();
           setAuthStatus("");
-          toast("Conta criada! 7 dias grátis · sincronizado","success");
+          toast(cloudOk?"Conta criada! 7 dias grátis · sincronizada na nuvem":"Conta criada! 7 dias grátis (nuvem: "+cloudErr+")", cloudOk?"success":"info");
           return;
-        } else {
-          // e-mail pode exigir confirmação — ainda assim mantém sessão se houver
-          try{
-            var li2=await sb.auth.signInWithPassword({email:email,password:pass});
-            if(!li2.error && li2.data && li2.data.user){
-              cloudUser=li2.data.user;
-              await startAppCloud(li2.data.user);
-              U=login;
-              try{document.getElementById("userDisplay").textContent=name||login}catch(e){}
-              applyNavMode();
-              setAuthStatus("");
-              toast("Conta criada! 7 dias grátis · nuvem ok","success");
-              return;
-            }
-          }catch(e){}
-        }
+        }catch(e){ console.warn(e); }
       }
-    }catch(e){ console.warn("cloud register", e); }
+    }catch(e){
+      cloudErr=String(e.message||e);
+      console.warn("doRegister cloud", e);
+    }
   }
+  // Fallback local
+  cloudUser=null;
+  localStorage.setItem("fp_currentUser", login);
+  U=login;
+  if(typeof ensureClientWorkspace==="function") ensureClientWorkspace(login);
+  try{ startApp(login); }catch(e){}
+  try{ applyNavMode(); }catch(e){}
   setAuthStatus("");
-  startApp(login);
-  toast("Conta criada! Você tem 7 dias grátis","success");
+  toast(cloudOk?"Conta criada! 7 dias grátis · nuvem ok":(cloudErr?("Conta criada localmente. Nuvem: "+cloudErr):"Conta criada! 7 dias grátis"), cloudOk?"success":"info");
 }
+
 
 function showPaywall(){ var m=document.getElementById("paywallModal"); if(m) m.classList.remove("hidden"); try{ startPixPaymentWatcher(); }catch(e){} }
 function hidePaywall(){ var m=document.getElementById("paywallModal"); if(m) m.classList.add("hidden"); }
@@ -2308,15 +2411,32 @@ async function doLogin(){
   if(loginKey===ADMIN_EMAIL.toLowerCase()&&(pass===ADMIN_PASS||pass===(localStorage.getItem("fp_admin_pass_override")||ADMIN_PASS))){
     localStorage.setItem("fp_currentUser",ADMIN_EMAIL);
     if(sb){
-      setAuthStatus("Entrando como Master...");
+      setAuthStatus("Entrando como Master (nuvem)…");
       try{
         var res=await sb.auth.signInWithPassword({email:ADMIN_EMAIL,password:pass});
-        if(!res.error&&res.data&&res.data.user){
-          cloudUser=res.data.user;await startAppCloud(res.data.user);applyNavMode();setAuthStatus("");return;
+        if(res.error){
+          // cria usuário admin no Auth se ainda não existir
+          try{ await sb.auth.signUp({email:ADMIN_EMAIL,password:pass,options:{data:{role:"admin"}}}); }catch(e){}
+          res=await sb.auth.signInWithPassword({email:ADMIN_EMAIL,password:pass});
         }
-      }catch(e){}
+        if(!res.error&&res.data&&res.data.user){
+          cloudUser=res.data.user;
+          await startAppCloud(res.data.user);
+          applyNavMode();
+          setAuthStatus("");
+          try{ loadClients(); }catch(e){}
+          toast("Master conectado · painel sincronizado com a nuvem","success");
+          return;
+        }
+        console.warn("admin auth", res.error);
+      }catch(e){ console.warn(e); }
     }
-    cloudUser={email:ADMIN_EMAIL,id:"master-local"};startApp(ADMIN_EMAIL);applyNavMode();toast("Master conectado","info");setAuthStatus("");return;
+    cloudUser={email:ADMIN_EMAIL,id:"master-local"};
+    startApp(ADMIN_EMAIL);
+    applyNavMode();
+    toast("Master local (sem sessão nuvem). Clientes de outros aparelhos podem não aparecer até o Auth do admin funcionar.","info");
+    setAuthStatus("");
+    return;
   }
   setAuthStatus("Entrando…");
   // 1) Contas criadas no app (login OU e-mail)
@@ -3609,19 +3729,60 @@ async function lookupClientCloud(loginKey){
     return mapCloudClient(res.data[0]);
   }catch(e){return null}
 }
+
+async function ensureAdminCloudSession(){
+  if(typeof sb==="undefined" || !sb) return {ok:false, error:"Supabase offline"};
+  try{
+    var cur=await sb.auth.getSession();
+    var em=(cur && cur.data && cur.data.session && cur.data.session.user && cur.data.session.user.email)||"";
+    if(em && em.toLowerCase()===String(ADMIN_EMAIL).toLowerCase()){
+      return {ok:true, session:true};
+    }
+  }catch(e){}
+  var pass=localStorage.getItem("fp_admin_pass_override")||ADMIN_PASS;
+  try{
+    var res=await sb.auth.signInWithPassword({email:ADMIN_EMAIL, password:pass});
+    if(!res.error && res.data && res.data.user){
+      cloudUser=res.data.user;
+      return {ok:true, session:true};
+    }
+    // tenta criar o usuário admin no Auth se não existir
+    var up=await sb.auth.signUp({email:ADMIN_EMAIL, password:pass, options:{data:{role:"admin"}}});
+    if(up.error){
+      // se já existe, o signIn anterior falhou por senha — reporta
+      return {ok:false, error:(res && res.error && res.error.message)||(up.error.message)||"auth admin falhou"};
+    }
+    // signUp ok — tenta entrar
+    var res2=await sb.auth.signInWithPassword({email:ADMIN_EMAIL, password:pass});
+    if(!res2.error && res2.data && res2.data.user){
+      cloudUser=res2.data.user;
+      return {ok:true, session:true, created:true};
+    }
+    return {ok:false, error:(res2.error && res2.error.message)||"sessão admin indisponível"};
+  }catch(e){
+    return {ok:false, error:String(e.message||e)};
+  }
+}
+
 async function fetchAllClientsCloud(){
   if(!sb)return [];
   var out=[];
   var errMsg="";
+  // Garante sessão do admin para RLS permitir SELECT de todos
+  try{
+    if(typeof isAdmin==="function" && isAdmin() && typeof ensureAdminCloudSession==="function"){
+      var auth=await ensureAdminCloudSession();
+      if(!auth.ok) errMsg=auth.error||"sem sessão admin";
+    }
+  }catch(e){}
   try{
     var res=await sb.from("clients").select("*").order("created_at",{ascending:false}).limit(1000);
     if(res.error){
       errMsg=res.error.message||String(res.error);
       console.warn("fetchAllClientsCloud", res.error);
-      // tenta sem order (alguns schemas)
       try{
         var res2=await sb.from("clients").select("*").limit(1000);
-        if(!res2.error && res2.data) out=res2.data;
+        if(!res2.error && res2.data){ out=res2.data; errMsg=""; }
         else errMsg=errMsg||(res2.error&&res2.error.message)||"";
       }catch(e2){}
     } else if(res.data){
@@ -3783,10 +3944,33 @@ function startAdminClientsWatch(){
   }catch(e){}
 }
 
+
+function startAdminClientsRealtime(){
+  try{
+    if(typeof isAdmin!=="function"||!isAdmin()||!sb) return;
+    if(window._adminRtChannel){
+      try{ sb.removeChannel(window._adminRtChannel); }catch(e){}
+      window._adminRtChannel=null;
+    }
+    window._adminRtChannel = sb.channel("clients-admin")
+      .on("postgres_changes", { event:"*", schema:"public", table:"clients" }, function(){
+        try{ loadClients(); }catch(e){}
+      })
+      .subscribe(function(status){ console.log("clients realtime", status); });
+  }catch(e){ console.warn("realtime clients", e); }
+}
+
 async function loadClients(){
   var list=document.getElementById("clientsList");
   if(!list||!isAdmin())return;
   list.innerHTML='<div class="py-8 text-center text-slate-400 text-xs"><i class="fas fa-circle-notch fa-spin text-lg mb-2"></i><p>Sincronizando clientes da nuvem…</p></div>';
+  // autentica admin na nuvem antes de buscar
+  try{
+    var auth=await ensureAdminCloudSession();
+    if(!auth.ok){
+      console.warn("admin cloud session", auth.error);
+    }
+  }catch(e){}
   var local=[];
   try{ local=typeof getClientsRegistry==="function"?getClientsRegistry():JSON.parse(localStorage.getItem("fp_clients_registry")||"[]"); }catch(e){}
   try{
@@ -3815,14 +3999,16 @@ async function loadClients(){
   window._adminClientFilter = window._adminClientFilter || "all";
   adminRenderFilterChips();
   adminRenderClientList();
-  // feedback de sincronização
   try{
     var nCloud=window._lastClientsCloudCount||0;
     var err=window._lastClientsCloudError||"";
     var bar=document.getElementById("adminSyncInfo");
     if(bar){
-      if(err) bar.innerHTML='<span class="text-amber-600"><i class="fas fa-exclamation-triangle mr-1"></i>Nuvem: '+esc(err)+' · locais: '+reg.length+'</span>';
-      else bar.innerHTML='<span class="text-emerald-600"><i class="fas fa-cloud mr-1"></i>'+nCloud+' na nuvem · '+reg.length+' no painel</span>';
+      if(err){
+        bar.innerHTML='<span class="text-amber-700 dark:text-amber-300"><i class="fas fa-exclamation-triangle mr-1"></i>Nuvem: '+esc(err)+'. Locais neste aparelho: '+reg.length+'. Se a política RLS bloquear o SELECT, libere leitura da tabela <b>clients</b> para o admin no Supabase.</span>';
+      } else {
+        bar.innerHTML='<span class="text-emerald-600"><i class="fas fa-cloud mr-1"></i>'+nCloud+' cliente(s) na nuvem · '+reg.length+' no painel (todos os aparelhos)</span>';
+      }
     }
   }catch(e){}
 }

@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="description" content="Controle inteligente de receitas e despesas"/>
 <title>Finanças Smart</title>
-<!-- FS_SYNC_FIX_V2: multi-device clients auto-sync -->
+<!-- FS_SYNC_FIX_V3: REST clients sync create+delete -->
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1276,144 +1276,106 @@ function saveClientsRegistrySafe(list){
   try{ localStorage.setItem("fp_clients_registry", JSON.stringify(list||[])); }catch(e){}
 }
 
-/** Grava/atualiza cliente na nuvem (Supabase) — essencial para aparecer no painel de outros aparelhos */
-async function pushClientToCloud(info){
-  if(typeof sb==="undefined" || !sb) return {ok:false, error:"Supabase offline"};
-  var login=String(info.login||"").toLowerCase().trim();
-  if(!login) return {ok:false, error:"login vazio"};
-  var name=info.name||login;
-  var email=info.email||null;
-  var pass=info.pass||info.password||info.temp_password||null;
-  var paid=!!(info.paid===true);
-  var status=paid?"ativo":String(info.status||"pendente").toLowerCase();
-  if(status==="active") status="pendente";
-  if(status==="vitalicio"||status==="paid") status="ativo";
-  var authId=info.auth_user_id||info.authUserId||null;
-  try{
-    if(!authId && sb.auth){
-      var sess=await sb.auth.getSession();
-      if(sess && sess.data && sess.data.session && sess.data.session.user)
-        authId=sess.data.session.user.id;
-    }
-  }catch(e){}
-
-  // SCHEMA REAL da tabela clients (confirmado na API):
-  // id, name, login, email, temp_password, auth_user_id, created_by, status, created_at
-  // NÃO existem: paid, trial_ends, password
-  var payload={
-    login:login,
-    name:name,
-    status:status
+/** === Clients cloud API (REST com publishable key — independe de sessão Auth) === */
+async function clientsRest(method, pathQuery, body){
+  var url = String(SB_URL||"").replace(/\/$/,"") + "/rest/v1/" + pathQuery;
+  var headers = {
+    "apikey": SB_KEY,
+    "Authorization": "Bearer " + SB_KEY,
+    "Content-Type": "application/json"
   };
-  if(email) payload.email=email;
-  if(pass) payload.temp_password=pass;
-  if(authId) payload.auth_user_id=authId;
-  try{
-    if(authId) payload.created_by=authId;
-    else if(cloudUser && cloudUser.id) payload.created_by=cloudUser.id;
-  }catch(e){}
-
-  var lastErr="";
-  async function tryWrite(p, method){
-    try{
-      if(method==="upsert"){
-        var up=await sb.from("clients").upsert(p, {onConflict:"login"});
-        if(!up.error) return {ok:true, method:"upsert", payload:p};
-        lastErr=(up.error && up.error.message)||String(up.error);
-        return {ok:false};
-      }
-      if(method==="insert"){
-        var ins=await sb.from("clients").insert(p);
-        if(!ins.error) return {ok:true, method:"insert", payload:p};
-        lastErr=(ins.error && ins.error.message)||lastErr;
-        return {ok:false};
-      }
-      if(method==="update"){
-        var upd=await sb.from("clients").update(p).eq("login", login);
-        if(!upd.error) return {ok:true, method:"update", payload:p};
-        lastErr=(upd.error && upd.error.message)||lastErr;
-        return {ok:false};
-      }
-    }catch(e){ lastErr=String(e.message||e); return {ok:false}; }
-    return {ok:false};
+  if(method === "POST" || method === "PATCH"){
+    headers["Prefer"] = "return=representation,resolution=merge-duplicates";
+  } else {
+    headers["Prefer"] = "return=representation";
   }
-
-  // Aguarda sessão Auth ficar pronta (signup assíncrono)
+  var opts = { method: method, headers: headers };
+  if(body != null) opts.body = JSON.stringify(body);
   try{
-    for(var _i=0;_i<4;_i++){
-      var sessW=await sb.auth.getSession();
-      if(sessW && sessW.data && sessW.data.session && sessW.data.session.user){
-        if(!payload.auth_user_id) payload.auth_user_id=sessW.data.session.user.id;
-        if(!payload.created_by) payload.created_by=sessW.data.session.user.id;
-        break;
-      }
-      await new Promise(function(r){ setTimeout(r, 400); });
+    var res = await fetch(url, opts);
+    var textBody = await res.text();
+    var data = null;
+    try{ data = textBody ? JSON.parse(textBody) : null; }catch(e){ data = textBody; }
+    if(!res.ok){
+      var msg = (data && data.message) || (data && data.error) || textBody || ("HTTP "+res.status);
+      return { ok:false, status:res.status, error:String(msg), data:data };
     }
-  }catch(e){}
-
-  var r1=await tryWrite(payload, "upsert");
-  if(r1 && r1.ok){ console.log("pushClientToCloud ok", login, status); return r1; }
-  var r2=await tryWrite(payload, "insert");
-  if(r2 && r2.ok){ console.log("pushClientToCloud insert ok", login); return r2; }
-  var minimal={login:login, name:name, status:status};
-  if(payload.auth_user_id) minimal.auth_user_id=payload.auth_user_id;
-  if(email) minimal.email=email;
-  var r3=await tryWrite(minimal, "upsert");
-  if(r3 && r3.ok){ console.log("pushClientToCloud minimal upsert ok", login); return r3; }
-  var r4=await tryWrite(minimal, "insert");
-  if(r4 && r4.ok){ console.log("pushClientToCloud minimal insert ok", login); return r4; }
-  var r5=await tryWrite(payload, "update");
-  if(r5 && r5.ok){ console.log("pushClientToCloud update ok", login); return r5; }
-
-  // Fallback: grava com sessão do admin (garante aparecer no painel de qualquer aparelho)
-  try{
-    var savedSession=null;
-    try{
-      var curS=await sb.auth.getSession();
-      if(curS && curS.data && curS.data.session) savedSession=curS.data.session;
-    }catch(e){}
-    var adminPass=localStorage.getItem("fp_admin_pass_override")||ADMIN_PASS;
-    var adminLogin=await sb.auth.signInWithPassword({email:ADMIN_EMAIL, password:adminPass});
-    if(!adminLogin.error && adminLogin.data && adminLogin.data.user){
-      var adminPayload={login:login, name:name, status:status};
-      if(email) adminPayload.email=email;
-      if(pass) adminPayload.temp_password=pass;
-      if(authId) adminPayload.auth_user_id=authId;
-      try{ adminPayload.created_by=adminLogin.data.user.id; }catch(e){}
-      var upA=await sb.from("clients").upsert(adminPayload, {onConflict:"login"});
-      var okAdmin=false;
-      if(!upA.error){
-        okAdmin=true;
-        console.log("pushClientToCloud via admin upsert ok", login);
-      } else {
-        var insA=await sb.from("clients").insert(adminPayload);
-        if(!insA.error){
-          okAdmin=true;
-          console.log("pushClientToCloud via admin insert ok", login);
-        } else {
-          lastErr=(insA.error && insA.error.message)||(upA.error && upA.error.message)||lastErr;
-        }
-      }
-      if(okAdmin){
-        try{
-          if(savedSession && savedSession.access_token){
-            await sb.auth.setSession({access_token:savedSession.access_token, refresh_token:savedSession.refresh_token});
-          } else if(email && pass){
-            await sb.auth.signInWithPassword({email:email, password:pass});
-          }
-        }catch(e){}
-        return {ok:true, method:"admin-write", payload:adminPayload};
-      }
-    } else {
-      lastErr=lastErr||((adminLogin.error&&adminLogin.error.message)||"admin auth falhou no fallback");
-    }
+    return { ok:true, status:res.status, data:data };
   }catch(e){
-    lastErr=lastErr||String(e.message||e);
-    console.warn("pushClient admin fallback", e);
+    return { ok:false, status:0, error:String(e.message||e), data:null };
   }
+}
 
-  console.warn("pushClientToCloud falhou", login, lastErr);
-  return {ok:false, error:lastErr||"falha ao gravar na nuvem"};
+/** Grava/atualiza cliente na nuvem — essencial para o admin ver em qualquer aparelho */
+async function pushClientToCloud(info){
+  try{
+    if(!SB_URL || !SB_KEY) return {ok:false, error:"Supabase offline"};
+    var login=String(info.login||"").toLowerCase().trim();
+    if(!login) return {ok:false, error:"login vazio"};
+    var name=info.name||login;
+    var email=info.email||null;
+    var pass=info.pass||info.password||info.temp_password||null;
+    var paid=!!(info.paid===true);
+    var status=paid?"ativo":String(info.status||"pendente").toLowerCase();
+    if(status==="active") status="pendente";
+    if(status==="vitalicio"||status==="paid") status="ativo";
+    if(status==="excluido"||status==="deleted") status="excluido";
+    var authId=info.auth_user_id||info.authUserId||null;
+    try{
+      if(!authId && typeof sb!=="undefined" && sb && sb.auth){
+        var sess=await sb.auth.getSession();
+        if(sess && sess.data && sess.data.session && sess.data.session.user)
+          authId=sess.data.session.user.id;
+      }
+    }catch(e){}
+
+    var payload={ login:login, name:String(name), status:status };
+    if(email) payload.email=String(email).toLowerCase().trim();
+    if(pass) payload.temp_password=String(pass);
+    if(authId) payload.auth_user_id=authId;
+
+    var up = await clientsRest("POST", "clients?on_conflict=login", payload);
+    if(up.ok){
+      console.log("pushClientToCloud REST ok", login, status);
+      return {ok:true, method:"rest-upsert", payload:payload, data:up.data};
+    }
+    var ins = await clientsRest("POST", "clients", payload);
+    if(ins.ok){
+      console.log("pushClientToCloud REST insert ok", login);
+      return {ok:true, method:"rest-insert", payload:payload, data:ins.data};
+    }
+    var patch = await clientsRest("PATCH", "clients?login=eq."+encodeURIComponent(login), payload);
+    if(patch.ok){
+      console.log("pushClientToCloud REST patch ok", login);
+      return {ok:true, method:"rest-patch", payload:payload, data:patch.data};
+    }
+    var err = (up && up.error) || (ins && ins.error) || (patch && patch.error) || "falha REST";
+    console.warn("pushClientToCloud falhou", login, err);
+    return {ok:false, error:err};
+  }catch(e){
+    console.warn("pushClientToCloud", e);
+    return {ok:false, error:String(e.message||e)};
+  }
+}
+
+async function deleteClientFromCloud(login, clientId, email){
+  var ok=false, lastErr="";
+  try{
+    if(clientId && String(clientId).length>8){
+      var d1=await clientsRest("DELETE", "clients?id=eq."+encodeURIComponent(clientId));
+      if(d1.ok) ok=true; else lastErr=d1.error||lastErr;
+    }
+    if(login){
+      var lg=String(login).toLowerCase().trim();
+      var d2=await clientsRest("DELETE", "clients?login=eq."+encodeURIComponent(lg));
+      if(d2.ok) ok=true; else lastErr=d2.error||lastErr;
+    }
+    if(email && String(email).indexOf("@")>=0){
+      var d3=await clientsRest("DELETE", "clients?email=eq."+encodeURIComponent(String(email).toLowerCase().trim()));
+      if(d3.ok) ok=true; else lastErr=d3.error||lastErr;
+    }
+  }catch(e){ lastErr=String(e.message||e); }
+  return {ok:ok, error:lastErr};
 }
 
 /** Cliente logado sincroniza o próprio perfil na nuvem (garante aparecer no admin) */
@@ -3375,21 +3337,21 @@ async function deleteMyAccount(){
 
     // --- CLOUD: apaga cadastro do painel (clients) e dados do usuário ---
     var cloudOk=false;
+    try{
+      var delRes=await deleteClientFromCloud(login, clientId, email);
+      cloudOk=!!(delRes && delRes.ok);
+      if(!cloudOk){
+        // fallback: marca excluído via REST
+        try{
+          if(login){
+            var upR=await clientsRest("PATCH", "clients?login=eq."+encodeURIComponent(login), {status:"excluido", temp_password:""});
+            if(upR.ok) cloudOk=true;
+          }
+        }catch(e){}
+      }
+    }catch(e){ console.warn("delete clients cloud", e); }
     if(typeof sb!=="undefined" && sb){
       try{
-        if(clientId){ var d1=await sb.from("clients").delete().eq("id", clientId); if(!d1.error) cloudOk=true; }
-        if(login){ var d2=await sb.from("clients").delete().eq("login", login); if(!d2.error) cloudOk=true; }
-        if(email){ var d3=await sb.from("clients").delete().eq("email", email); if(!d3.error) cloudOk=true; }
-        try{ await sb.from("clients").delete().eq("email", login+"@financas.local"); }catch(e){}
-        // fallback se RLS bloquear DELETE: marca como excluído
-        if(!cloudOk){
-          try{
-            var up={status:"excluido", temp_password:"", password:""};
-            if(login){ var u1=await sb.from("clients").update(up).eq("login", login); if(!u1.error) cloudOk=true; }
-            if(email){ var u2=await sb.from("clients").update(up).eq("email", email); if(!u2.error) cloudOk=true; }
-            if(clientId){ var u3=await sb.from("clients").update(up).eq("id", clientId); if(!u3.error) cloudOk=true; }
-          }catch(e){}
-        }
         if(cloudUser && cloudUser.id && String(cloudUser.id).indexOf("master-local")<0){
           var uid=cloudUser.id;
           try{ await sb.from("transactions").delete().eq("user_id", uid); }catch(e){}
@@ -4171,28 +4133,22 @@ async function ensureAdminCloudSession(){
 }
 
 async function fetchAllClientsCloud(){
-  if(!sb)return [];
   var out=[];
   var errMsg="";
-  // Garante sessão do admin para RLS permitir SELECT de todos
   try{
-    if(typeof isAdmin==="function" && isAdmin() && typeof ensureAdminCloudSession==="function"){
-      var auth=await ensureAdminCloudSession();
-      if(!auth.ok) errMsg=auth.error||"sem sessão admin";
-    }
-  }catch(e){}
-  try{
-    var res=await sb.from("clients").select("*").order("created_at",{ascending:false}).limit(1000);
-    if(res.error){
-      errMsg=res.error.message||String(res.error);
-      console.warn("fetchAllClientsCloud", res.error);
+    var res = await clientsRest("GET", "clients?select=*&order=created_at.desc&limit=1000");
+    if(!res.ok){
+      errMsg = res.error || "falha ao buscar clientes";
+      console.warn("fetchAllClientsCloud", errMsg);
+      // fallback supabase-js se REST falhar
       try{
-        var res2=await sb.from("clients").select("*").limit(1000);
-        if(!res2.error && res2.data){ out=res2.data; errMsg=""; }
-        else errMsg=errMsg||(res2.error&&res2.error.message)||"";
+        if(typeof sb!=="undefined" && sb){
+          var r2=await sb.from("clients").select("*").limit(1000);
+          if(!r2.error && r2.data){ out=r2.data; errMsg=""; }
+        }
       }catch(e2){}
-    } else if(res.data){
-      out=res.data;
+    } else {
+      out = Array.isArray(res.data) ? res.data : [];
     }
   }catch(e){
     errMsg=String(e.message||e);
@@ -4353,10 +4309,10 @@ function startAdminClientsWatch(){
   try{
     if(window._adminClientsTimer) clearInterval(window._adminClientsTimer);
     if(typeof isAdmin!=="function"||!isAdmin()) return;
-    // A cada 15s busca clientes da nuvem — cadastro em outro aparelho aparece sozinho
+    // A cada 8s busca clientes da nuvem — cadastro/exclusão em outro aparelho aparece sozinho
     window._adminClientsTimer=setInterval(function(){
       try{ if(typeof isAdmin==="function"&&isAdmin()) loadClients(); }catch(e){}
-    }, 15000);
+    }, 8000);
     try{ setTimeout(function(){ try{ if(isAdmin()) loadClients(); }catch(e){} }, 2500); }catch(e){}
   }catch(e){}
 }
@@ -4775,20 +4731,13 @@ async function adminDeleteClientDo(login, clientId){
       }
     }catch(e){}
 
-    // 4) cloud — só por id ou login exato (nunca por e-mail genérico)
+    // 4) cloud REST (publishable key)
     var cloudOk=false;
-    if(typeof sb!=="undefined" && sb){
-      try{
-        if(clientId){
-          var d1=await sb.from("clients").delete().eq("id", clientId);
-          if(!d1.error) cloudOk=true;
-        }
-        if(login){
-          var d2=await sb.from("clients").delete().eq("login", login);
-          if(!d2.error) cloudOk=true;
-        }
-      }catch(e){ console.warn("cloud delete", e); }
-    }
+    try{
+      var delRes=await deleteClientFromCloud(login, clientId, targetEmail);
+      cloudOk=!!(delRes && delRes.ok);
+      if(!cloudOk && delRes && delRes.error) console.warn("cloud delete", delRes.error);
+    }catch(e){ console.warn("cloud delete", e); }
 
     window._adminClientsCache=(window._adminClientsCache||[]).filter(function(c){
       if(login && (c.login||"").toLowerCase()===login) return false;

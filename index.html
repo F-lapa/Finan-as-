@@ -1025,6 +1025,11 @@ body.app-locked #paywallModal { display: block !important; }
 <button onclick="exportJSON()" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm mb-2"><i class="fas fa-download mr-2"></i>Exportar backup JSON</button>
 <button onclick="clearAllData()" class="w-full px-4 py-2.5 rounded-xl border border-red-300 text-red-500 text-sm"><i class="fas fa-trash mr-2"></i>Apagar todos os dados</button>
 </div>
+<div class="settings-section border-red-200 dark:border-red-900/50" id="settingsDeleteAccountBox">
+<p class="text-xs font-bold uppercase tracking-wider text-red-500 mb-2">Zona de perigo</p>
+<p class="text-[11px] text-slate-500 mb-3 leading-relaxed">Excluir sua conta remove o acesso, seus dados neste aparelho e o cadastro do painel do administrador (nuvem). Esta ação <strong>não pode ser desfeita</strong>.</p>
+<button type="button" onclick="deleteMyAccount()" class="w-full px-4 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold shadow-md shadow-red-500/20"><i class="fas fa-user-slash mr-2"></i>Deletar minha conta</button>
+</div>
 </div></div></div>
 <script>
 
@@ -2666,7 +2671,97 @@ function scheduleSync(){
   clearTimeout(window._syncTimer);
   window._syncTimer=setTimeout(function(){syncToCloud()},900);
 }
-async function logout(){
+async 
+async function deleteMyAccount(){
+  try{
+    if(typeof isAdmin==="function"&&isAdmin()){
+      toast("Conta admin não pode ser excluída por aqui","error");
+      return;
+    }
+  }catch(e){}
+  var login=String(U||localStorage.getItem("fp_currentUser")||"").toLowerCase().trim();
+  if(!login){
+    toast("Nenhuma conta logada","error");
+    return;
+  }
+  if(!confirm("Tem certeza que deseja DELETAR sua conta?\n\nIsso apaga seu acesso e remove você do painel do administrador.\nEsta ação não pode ser desfeita.")) return;
+  if(!confirm("Confirma a exclusão definitiva da conta \""+login+"\"?")) return;
+
+  toast("Excluindo conta…","info");
+  try{ closeSettings(); }catch(e){}
+
+  // 1) nuvem — remove da tabela clients (some do painel admin em qualquer aparelho)
+  try{
+    if(typeof sb!=="undefined" && sb){
+      try{
+        await sb.from("clients").delete().eq("login", login);
+      }catch(e){ console.warn("delete cloud clients", e); }
+      // auth do Supabase (se estiver logado na nuvem)
+      try{
+        var sess=await sb.auth.getSession();
+        if(sess && sess.data && sess.data.session && sess.data.session.user){
+          // tenta apagar usuário do Auth (pode exigir service role; ignora se falhar)
+          try{ await sb.auth.signOut(); }catch(e){}
+        }
+      }catch(e){}
+    }
+  }catch(e){ console.warn(e); }
+
+  // 2) registry do painel (local)
+  try{
+    var reg=[];
+    try{ reg=typeof getClientsRegistrySafe==="function"?getClientsRegistrySafe():JSON.parse(localStorage.getItem("fp_clients_registry")||"[]"); }catch(e){}
+    reg=(reg||[]).filter(function(c){ return (c.login||"").toLowerCase()!==login; });
+    if(typeof saveClientsRegistrySafe==="function") saveClientsRegistrySafe(reg);
+    else localStorage.setItem("fp_clients_registry", JSON.stringify(reg));
+  }catch(e){}
+
+  // 3) conta em fp_users
+  try{
+    var users=JSON.parse(localStorage.getItem("fp_users")||"{}");
+    delete users[login];
+    localStorage.setItem("fp_users", JSON.stringify(users));
+  }catch(e){}
+
+  // 4) lista de pagos
+  try{
+    var paid=JSON.parse(localStorage.getItem("fp_paid_logins")||"[]");
+    paid=paid.filter(function(x){ return String(x).toLowerCase()!==login; });
+    localStorage.setItem("fp_paid_logins", JSON.stringify(paid));
+  }catch(e){}
+
+  // 5) dados do workspace do cliente
+  try{
+    var keys=[];
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);
+      if(k && (k==="fp_"+login || k.indexOf("fp_"+login+"_")===0)) keys.push(k);
+    }
+    keys.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+    // padrões legados
+    ["transactions","categories","limits","reminders","recurring","rules","learned","goals","valueRules"].forEach(function(suf){
+      try{ localStorage.removeItem("fp_"+login+"_"+suf); }catch(e){}
+    });
+  }catch(e){}
+
+  // 6) sessão
+  try{ localStorage.removeItem("fp_currentUser"); }catch(e){}
+  U=null;
+  cloudUser=null;
+  try{ document.body.classList.remove("app-locked"); }catch(e){}
+
+  try{
+    document.getElementById("appScreen").classList.add("hidden");
+    document.getElementById("loginScreen").classList.remove("hidden");
+    setAuthTab("login");
+    setAuthStatus("");
+  }catch(e){}
+
+  toast("Conta excluída com sucesso","success");
+}
+
+
+function logout(){
   if(sb){try{await sb.auth.signOut()}catch(e){}}
   try{localStorage.removeItem("fp_currentUser")}catch(e){}
   // NÃO apaga fp_users nem dados do cliente
@@ -3075,9 +3170,22 @@ function renderCharts(){
   }
 }
 
-function openSettings(){document.getElementById("settingsModal").classList.remove("hidden");try{loadAiSettings()}catch(e){}
-try{var a=document.getElementById("setAdvancedNav");if(a)a.checked=true;
-var d=document.getElementById("setDarkTheme");if(d)d.checked=document.documentElement.classList.contains("dark")}catch(e){}}
+function openSettings(){
+  document.getElementById("settingsModal").classList.remove("hidden");
+  try{loadAiSettings()}catch(e){}
+  try{
+    var a=document.getElementById("setAdvancedNav");if(a)a.checked=true;
+    var d=document.getElementById("setDarkTheme");if(d)d.checked=document.documentElement.classList.contains("dark");
+  }catch(e){}
+  try{
+    var box=document.getElementById("settingsDeleteAccountBox");
+    if(box){
+      var isAdm=typeof isAdmin==="function"&&isAdmin();
+      if(isAdm) box.classList.add("hidden");
+      else box.classList.remove("hidden");
+    }
+  }catch(e){}
+}
 function closeSettings(){document.getElementById("settingsModal").classList.add("hidden")}
 
 function clearAllData(){if(!confirm("Apagar TODOS os dados?"))return;if(!confirm("Tem certeza?"))return;T=[];C=DC.slice();L={};R=[];RC=[];RU=[];LN={};sd("transactions",T);sd("categories",C);sd("limits",L);sd("reminders",R);sd("recurring",RC);sd("rules",RU);sd("learned",LN);toast("Dados apagados");closeSettings();renderDashboard()}
@@ -3978,8 +4086,27 @@ async function loadClients(){
     });
   }catch(e){}
   var cloud=[];
-  try{ cloud=await fetchAllClientsCloud(); }catch(e){ console.warn(e); }
+  var cloudOk=false;
+  try{
+    cloud=await fetchAllClientsCloud();
+    // se não houve erro de API, a lista da nuvem é a fonte da verdade
+    cloudOk=!window._lastClientsCloudError;
+  }catch(e){ console.warn(e); }
   var reg=mergeClientLists(local, cloud);
+  // Remove do painel quem foi excluído na nuvem (ex.: cliente deletou a própria conta)
+  if(cloudOk){
+    var cloudLogins={};
+    (cloud||[]).forEach(function(c){ if(c&&c.login) cloudLogins[String(c.login).toLowerCase()]=true; });
+    reg=(reg||[]).filter(function(c){
+      if(!c||!c.login) return false;
+      var lg=String(c.login).toLowerCase();
+      // mantém só locais nunca sincronizados OU presentes na nuvem
+      if(cloudLogins[lg]) return true;
+      if(c.cloud) return false; // estava na nuvem e sumiu = excluído
+      // se a nuvem tem qualquer cliente, preferir não manter fantasmas antigos marcados cloud
+      return !c.cloud;
+    });
+  }
   try{ if(typeof saveClientsRegistry==="function") saveClientsRegistry(reg); else localStorage.setItem("fp_clients_registry",JSON.stringify(reg)); }catch(e){}
   try{ if(typeof syncUsersFromClients==="function") syncUsersFromClients(reg); }catch(e){}
   window._adminClientsCache = reg.slice();

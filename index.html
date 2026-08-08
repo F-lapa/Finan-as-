@@ -1229,13 +1229,12 @@ async function pushClientToCloud(info){
   var login=String(info.login||"").toLowerCase().trim();
   if(!login) return {ok:false, error:"login vazio"};
   var name=info.name||login;
-  var email=info.email||"";
-  var pass=info.pass||info.password||info.temp_password||"";
-  var trialEnds=info.trialEnds||info.trial_ends||(typeof trialEndDate==="function"?trialEndDate():new Date(Date.now()+7*864e5).toISOString());
-  var createdAt=info.createdAt||info.created_at||new Date().toISOString();
+  var email=info.email||null;
+  var pass=info.pass||info.password||info.temp_password||null;
   var paid=!!(info.paid===true);
-  var status=paid?"ativo":(info.status||"pendente");
+  var status=paid?"ativo":String(info.status||"pendente").toLowerCase();
   if(status==="active") status="pendente";
+  if(status==="vitalicio"||status==="paid") status="ativo";
   var authId=info.auth_user_id||info.authUserId||null;
   try{
     if(!authId && sb.auth){
@@ -1245,65 +1244,47 @@ async function pushClientToCloud(info){
     }
   }catch(e){}
 
-  var base={
+  // SCHEMA REAL da tabela clients (confirmado na API):
+  // id, name, login, email, temp_password, auth_user_id, created_by, status, created_at
+  // NÃO existem: paid, trial_ends, password
+  var payload={
     login:login,
     name:name,
-    email:email||null,
-    temp_password:pass||null,
-    status:status,
-    paid:paid,
-    trial_ends:trialEnds,
-    created_at:createdAt
+    status:status
   };
-  if(authId) base.auth_user_id=authId;
-  if(pass) base.password=pass;
-
-  // Vários formatos por causa de schemas/colunas diferentes
-  var payloads=[
-    Object.assign({}, base),
-    {login:login, name:name, email:email, temp_password:pass, status:status, paid:paid, trial_ends:trialEnds, auth_user_id:authId},
-    {login:login, name:name, email:email, temp_password:pass, status:status, paid:paid, trial_ends:trialEnds},
-    {login:login, name:name, email:email, temp_password:pass, status:status},
-    {login:login, name:name, email:email, status:status, paid:paid},
-    {login:login, name:name, status:status}
-  ];
-  payloads=payloads.map(function(p){
-    var o={};
-    Object.keys(p).forEach(function(k){
-      if(p[k]!==null && p[k]!==undefined && p[k]!=="") o[k]=p[k];
-    });
-    o.login=login;
-    if(paid) o.paid=true; else o.paid=false;
-    return o;
-  });
+  if(email) payload.email=email;
+  if(pass) payload.temp_password=pass;
+  if(authId) payload.auth_user_id=authId;
 
   var lastErr="";
-  for(var i=0;i<payloads.length;i++){
-    var payload=payloads[i];
-    try{
-      var up=await sb.from("clients").upsert(payload, {onConflict:"login"});
-      if(!up.error){
-        console.log("pushClientToCloud ok upsert", login);
-        return {ok:true, method:"upsert", payload:payload};
-      }
-      lastErr=(up.error && up.error.message)||String(up.error);
-      // se onConflict não existe, tenta insert e depois update
-      var ins=await sb.from("clients").insert(payload);
-      if(!ins.error){
-        console.log("pushClientToCloud ok insert", login);
-        return {ok:true, method:"insert", payload:payload};
-      }
-      lastErr=(ins.error && ins.error.message)||lastErr;
-      var upd=await sb.from("clients").update(payload).eq("login", login);
-      if(!upd.error){
-        console.log("pushClientToCloud ok update", login);
-        return {ok:true, method:"update", payload:payload};
-      }
-      lastErr=(upd.error && upd.error.message)||lastErr;
-    }catch(e){
-      lastErr=String(e.message||e);
+  try{
+    // upsert por login (unique)
+    var up=await sb.from("clients").upsert(payload, {onConflict:"login"});
+    if(!up.error){
+      console.log("pushClientToCloud ok", login, status);
+      return {ok:true, method:"upsert", payload:payload};
     }
-  }
+    lastErr=(up.error && up.error.message)||String(up.error);
+  }catch(e){ lastErr=String(e.message||e); }
+
+  try{
+    var ins=await sb.from("clients").insert(payload);
+    if(!ins.error){
+      console.log("pushClientToCloud insert ok", login);
+      return {ok:true, method:"insert", payload:payload};
+    }
+    lastErr=(ins.error && ins.error.message)||lastErr;
+  }catch(e){ lastErr=String(e.message||e); }
+
+  try{
+    var upd=await sb.from("clients").update(payload).eq("login", login);
+    if(!upd.error){
+      console.log("pushClientToCloud update ok", login);
+      return {ok:true, method:"update", payload:payload};
+    }
+    lastErr=(upd.error && upd.error.message)||lastErr;
+  }catch(e){ lastErr=String(e.message||e); }
+
   console.warn("pushClientToCloud falhou", login, lastErr);
   return {ok:false, error:lastErr||"falha ao gravar na nuvem"};
 }
@@ -1972,6 +1953,10 @@ async function refreshPaidStatusFromCloud(){
       unlocked=true;
     }catch(e){}
   }
+  function statusIsPaid(st){
+    st=String(st||"").toLowerCase();
+    return st==="ativo" || st==="vitalicio" || st==="paid";
+  }
   // A) lista local
   try{
     var paidList=JSON.parse(localStorage.getItem("fp_paid_logins")||"[]");
@@ -1985,21 +1970,14 @@ async function refreshPaidStatusFromCloud(){
   // C) registry
   try{
     var reg=typeof getClientsRegistrySafe==="function"?getClientsRegistrySafe():JSON.parse(localStorage.getItem("fp_clients_registry")||"[]");
-    var hit=(reg||[]).find(function(c){ return (c.login||"").toLowerCase()===lg && (c.paid===true||c.status==="ativo"||c.status==="active"); });
+    var hit=(reg||[]).find(function(c){ return (c.login||"").toLowerCase()===lg && (c.paid===true||statusIsPaid(c.status)); });
     if(hit) markPaid("registry");
   }catch(e){}
-  // D) nuvem (fonte principal entre aparelhos)
+  // D) nuvem — só coluna status existe
   try{
     if(typeof sb!=="undefined" && sb){
-      var res=await sb.from("clients").select("login,paid,status,paid_at").eq("login", lg).maybeSingle();
-      if(res && res.data && (res.data.paid===true || res.data.status==="ativo" || res.data.status==="active")){
-        markPaid("cloud");
-      }
-      // fallback: alguns schemas só têm status
-      if(!unlocked){
-        var res2=await sb.from("clients").select("login,status").eq("login", lg).maybeSingle();
-        if(res2 && res2.data && (res2.data.status==="ativo"||res2.data.status==="active")) markPaid("cloud-status");
-      }
+      var res=await sb.from("clients").select("login,status").eq("login", lg).maybeSingle();
+      if(res && res.data && statusIsPaid(res.data.status)) markPaid("cloud");
     }
   }catch(e){}
   if(unlocked){
@@ -3698,27 +3676,36 @@ function clientSynthEmail(login,unique){
 function mapCloudClient(row){
   if(!row)return null;
   var st=String(row.status||"pendente").toLowerCase();
+  // "active" no banco = conta criada (não é pago)
   if(st==="active") st="pendente";
-  var isPaid=!!(row.paid===true || st==="ativo" || st==="vitalicio" || st==="paid");
+  var isPaid=!!(st==="ativo" || st==="vitalicio" || st==="paid" || row.paid===true);
   if(isPaid) st="ativo";
+  var created=row.created_at||row.createdAt||null;
+  // trial de 7 dias a partir do created_at (coluna trial_ends NÃO existe no banco)
+  var trialEnds=null;
+  if(created){
+    try{
+      var t=new Date(created).getTime();
+      if(!isNaN(t)) trialEnds=new Date(t+7*24*60*60*1000).toISOString();
+    }catch(e){}
+  }
   return {
     id:row.id||(typeof uid==="function"?uid():("c_"+Date.now())),
     login:row.login,
-    password:row.temp_password||row.password||"",
-    temp_password:row.temp_password||row.password||"",
+    password:row.temp_password||"",
+    temp_password:row.temp_password||"",
     name:row.name||row.login,
     role:"client",
     status:st,
     paid:isPaid,
-    paymentPending:!!(row.payment_pending||row.paymentPending||st==="aguardando_pix"),
-    trialEnds:row.trial_ends||row.trialEnds||null,
-    synthEmail:row.email||row.synthEmail,
+    paymentPending:!!(st==="aguardando_pix"),
+    trialEnds:trialEnds,
     email:row.email||"",
-    authUserId:row.auth_user_id||row.authUserId,
+    synthEmail:row.email||"",
+    authUserId:row.auth_user_id||null,
     cloud:true,
-    createdAt:row.created_at||row.createdAt||null,
-    created_at:row.created_at||row.createdAt||null,
-    paidAt:row.paid_at||row.paidAt||null
+    createdAt:created,
+    created_at:created
   };
 }
 async function lookupClientCloud(loginKey){
@@ -3870,10 +3857,10 @@ async function generateClient(){
       else if(sign.data&&sign.data.user){
         authUserId=sign.data.user.id;cloudOk=true;
         try{await sb.from("clients").delete().eq("login",login)}catch(e){}
-        var trialEnds=(typeof trialEndDate==="function"?trialEndDate():new Date(Date.now()+7*864e5).toISOString()); var ins=await sb.from("clients").insert({name:name,login:login,email:synth,temp_password:pass,auth_user_id:authUserId,status:"pendente",paid:false,trial_ends:trialEnds,created_at:new Date().toISOString()}).select();
+        var ins=await sb.from("clients").insert({name:name,login:login,email:synth,temp_password:pass,auth_user_id:authUserId,status:"pendente"}).select();
         if(ins.error){
           // tenta upsert via update
-          var up=await sb.from("clients").upsert({name:name,login:login,email:synth,temp_password:pass,auth_user_id:authUserId,status:"pendente",paid:false,trial_ends:trialEnds},{onConflict:"login"}).select();
+          var up=await sb.from("clients").upsert({name:name,login:login,email:synth,temp_password:pass,auth_user_id:authUserId,status:"pendente"},{onConflict:"login"}).select();
           if(up.error){cloudMsg="Mapa na nuvem: "+(ins.error.message||up.error.message)}
           else {cloudOk=true;cloudMsg="Cliente gravado na nuvem (upsert)."}
         } else cloudMsg="Cliente gravado na nuvem — funciona em qualquer aparelho.";
@@ -4253,10 +4240,9 @@ async function pushVitalicioToCloud(login){
     if(paid.indexOf(lg)<0) paid.push(lg);
     localStorage.setItem("fp_paid_logins",JSON.stringify(paid));
   }catch(e){}
-  // 3) registry admin
+  // 3) registry local
   try{
-    var reg=typeof getClientsRegistrySafe==="function"?getClientsRegistrySafe():
-      (typeof getClientsRegistry==="function"?getClientsRegistry():JSON.parse(localStorage.getItem("fp_clients_registry")||"[]"));
+    var reg=typeof getClientsRegistrySafe==="function"?getClientsRegistrySafe():JSON.parse(localStorage.getItem("fp_clients_registry")||"[]");
     var found=false;
     reg=reg.map(function(c){
       if((c.login||"").toLowerCase()===lg){
@@ -4267,24 +4253,18 @@ async function pushVitalicioToCloud(login){
     });
     if(!found) reg.push({login:lg,name:lg,paid:true,status:"ativo",paymentPending:false,paidAt:when});
     if(typeof saveClientsRegistrySafe==="function") saveClientsRegistrySafe(reg);
-    else if(typeof saveClientsRegistry==="function") saveClientsRegistry(reg);
     else localStorage.setItem("fp_clients_registry",JSON.stringify(reg));
   }catch(e){}
-  // 4) nuvem Supabase — tenta update e upsert
+  // 4) nuvem — SCHEMA REAL: só status (sem coluna paid)
   try{
     if(typeof sb!=="undefined" && sb){
-      var payload={login:lg, paid:true, status:"ativo", paid_at:when};
-      try{
-        var up=await sb.from("clients").update({paid:true, status:"ativo", paid_at:when}).eq("login", lg);
-        if(up && up.error) throw up.error;
-      }catch(e1){}
-      try{
-        await sb.from("clients").upsert(payload, {onConflict:"login"});
-      }catch(e2){
-        try{ await sb.from("clients").upsert({login:lg, status:"ativo"}, {onConflict:"login"}); }catch(e3){}
+      var up=await sb.from("clients").update({status:"ativo"}).eq("login", lg);
+      if(up.error){
+        // tenta upsert mínimo
+        await sb.from("clients").upsert({login:lg, name:lg, status:"ativo"}, {onConflict:"login"});
       }
     }
-  }catch(e){}
+  }catch(e){ console.warn("pushVitalicio cloud", e); }
   return true;
 }
 
@@ -4530,7 +4510,7 @@ function submitChangePasswordModal(){
     // nuvem (melhor esforço)
     try{
       if(typeof sb!=="undefined"&&sb){
-        sb.from("clients").update({temp_password:n1, password:n1}).eq("login",key).then(function(){}).catch(function(){});
+        sb.from("clients").update({temp_password:n1}).eq("login",key).then(function(){}).catch(function(){});
       }
     }catch(e){}
 

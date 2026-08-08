@@ -15,6 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="description" content="Controle inteligente de receitas e despesas"/>
 <title>Finanças Smart</title>
+<!-- FS_SYNC_FIX_V2: multi-device clients auto-sync -->
+
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -1306,35 +1308,109 @@ async function pushClientToCloud(info){
   if(email) payload.email=email;
   if(pass) payload.temp_password=pass;
   if(authId) payload.auth_user_id=authId;
+  try{
+    if(authId) payload.created_by=authId;
+    else if(cloudUser && cloudUser.id) payload.created_by=cloudUser.id;
+  }catch(e){}
 
   var lastErr="";
-  try{
-    // upsert por login (unique)
-    var up=await sb.from("clients").upsert(payload, {onConflict:"login"});
-    if(!up.error){
-      console.log("pushClientToCloud ok", login, status);
-      return {ok:true, method:"upsert", payload:payload};
-    }
-    lastErr=(up.error && up.error.message)||String(up.error);
-  }catch(e){ lastErr=String(e.message||e); }
+  async function tryWrite(p, method){
+    try{
+      if(method==="upsert"){
+        var up=await sb.from("clients").upsert(p, {onConflict:"login"});
+        if(!up.error) return {ok:true, method:"upsert", payload:p};
+        lastErr=(up.error && up.error.message)||String(up.error);
+        return {ok:false};
+      }
+      if(method==="insert"){
+        var ins=await sb.from("clients").insert(p);
+        if(!ins.error) return {ok:true, method:"insert", payload:p};
+        lastErr=(ins.error && ins.error.message)||lastErr;
+        return {ok:false};
+      }
+      if(method==="update"){
+        var upd=await sb.from("clients").update(p).eq("login", login);
+        if(!upd.error) return {ok:true, method:"update", payload:p};
+        lastErr=(upd.error && upd.error.message)||lastErr;
+        return {ok:false};
+      }
+    }catch(e){ lastErr=String(e.message||e); return {ok:false}; }
+    return {ok:false};
+  }
 
+  // Aguarda sessão Auth ficar pronta (signup assíncrono)
   try{
-    var ins=await sb.from("clients").insert(payload);
-    if(!ins.error){
-      console.log("pushClientToCloud insert ok", login);
-      return {ok:true, method:"insert", payload:payload};
+    for(var _i=0;_i<4;_i++){
+      var sessW=await sb.auth.getSession();
+      if(sessW && sessW.data && sessW.data.session && sessW.data.session.user){
+        if(!payload.auth_user_id) payload.auth_user_id=sessW.data.session.user.id;
+        if(!payload.created_by) payload.created_by=sessW.data.session.user.id;
+        break;
+      }
+      await new Promise(function(r){ setTimeout(r, 400); });
     }
-    lastErr=(ins.error && ins.error.message)||lastErr;
-  }catch(e){ lastErr=String(e.message||e); }
+  }catch(e){}
 
+  var r1=await tryWrite(payload, "upsert");
+  if(r1 && r1.ok){ console.log("pushClientToCloud ok", login, status); return r1; }
+  var r2=await tryWrite(payload, "insert");
+  if(r2 && r2.ok){ console.log("pushClientToCloud insert ok", login); return r2; }
+  var minimal={login:login, name:name, status:status};
+  if(payload.auth_user_id) minimal.auth_user_id=payload.auth_user_id;
+  if(email) minimal.email=email;
+  var r3=await tryWrite(minimal, "upsert");
+  if(r3 && r3.ok){ console.log("pushClientToCloud minimal upsert ok", login); return r3; }
+  var r4=await tryWrite(minimal, "insert");
+  if(r4 && r4.ok){ console.log("pushClientToCloud minimal insert ok", login); return r4; }
+  var r5=await tryWrite(payload, "update");
+  if(r5 && r5.ok){ console.log("pushClientToCloud update ok", login); return r5; }
+
+  // Fallback: grava com sessão do admin (garante aparecer no painel de qualquer aparelho)
   try{
-    var upd=await sb.from("clients").update(payload).eq("login", login);
-    if(!upd.error){
-      console.log("pushClientToCloud update ok", login);
-      return {ok:true, method:"update", payload:payload};
+    var savedSession=null;
+    try{
+      var curS=await sb.auth.getSession();
+      if(curS && curS.data && curS.data.session) savedSession=curS.data.session;
+    }catch(e){}
+    var adminPass=localStorage.getItem("fp_admin_pass_override")||ADMIN_PASS;
+    var adminLogin=await sb.auth.signInWithPassword({email:ADMIN_EMAIL, password:adminPass});
+    if(!adminLogin.error && adminLogin.data && adminLogin.data.user){
+      var adminPayload={login:login, name:name, status:status};
+      if(email) adminPayload.email=email;
+      if(pass) adminPayload.temp_password=pass;
+      if(authId) adminPayload.auth_user_id=authId;
+      try{ adminPayload.created_by=adminLogin.data.user.id; }catch(e){}
+      var upA=await sb.from("clients").upsert(adminPayload, {onConflict:"login"});
+      var okAdmin=false;
+      if(!upA.error){
+        okAdmin=true;
+        console.log("pushClientToCloud via admin upsert ok", login);
+      } else {
+        var insA=await sb.from("clients").insert(adminPayload);
+        if(!insA.error){
+          okAdmin=true;
+          console.log("pushClientToCloud via admin insert ok", login);
+        } else {
+          lastErr=(insA.error && insA.error.message)||(upA.error && upA.error.message)||lastErr;
+        }
+      }
+      if(okAdmin){
+        try{
+          if(savedSession && savedSession.access_token){
+            await sb.auth.setSession({access_token:savedSession.access_token, refresh_token:savedSession.refresh_token});
+          } else if(email && pass){
+            await sb.auth.signInWithPassword({email:email, password:pass});
+          }
+        }catch(e){}
+        return {ok:true, method:"admin-write", payload:adminPayload};
+      }
+    } else {
+      lastErr=lastErr||((adminLogin.error&&adminLogin.error.message)||"admin auth falhou no fallback");
     }
-    lastErr=(upd.error && upd.error.message)||lastErr;
-  }catch(e){ lastErr=String(e.message||e); }
+  }catch(e){
+    lastErr=lastErr||String(e.message||e);
+    console.warn("pushClient admin fallback", e);
+  }
 
   console.warn("pushClientToCloud falhou", login, lastErr);
   return {ok:false, error:lastErr||"falha ao gravar na nuvem"};
@@ -2588,8 +2664,15 @@ async function doLogin(){
   err.textContent="Conta não encontrada. Use o mesmo login (ou e-mail) e a senha do cadastro.";err.classList.remove("hidden");setAuthStatus("");
 }
 async function startAppCloud(user){
-  U=user.email||user.id;
   cloudUser=user;
+  try{
+    if(typeof isAdmin==="function" && ((user.email||"").toLowerCase()===String(ADMIN_EMAIL).toLowerCase())){
+      U=ADMIN_EMAIL;
+    } else {
+      var cur=localStorage.getItem("fp_currentUser");
+      U=cur || user.email || user.id;
+    }
+  }catch(e){ U=user.email||user.id; }
   document.getElementById("loginScreen").classList.add("hidden");
   document.getElementById("appScreen").classList.remove("hidden");
   document.getElementById("userDisplay").textContent=U;
@@ -2599,9 +2682,22 @@ async function startAppCloud(user){
   document.getElementById("reminderDate").value=today();
   await loadFromCloud();
   processRecurring();
-  showSection("dashboard");
+  if(typeof isAdmin==="function" && isAdmin()){
+    showSection("admin");
+    try{ loadClients().catch(function(){}); }catch(e){}
+    try{ startAdminClientsWatch(); }catch(e){}
+    try{ startAdminClientsRealtime(); }catch(e){}
+  } else {
+    showSection("dashboard");
+    try{ Promise.resolve(syncMyProfileToCloud()).catch(function(){}); }catch(e){}
+    try{ setTimeout(function(){ try{ syncMyProfileToCloud(); }catch(e){} }, 2500); }catch(e){}
+    try{ setTimeout(function(){ try{ syncMyProfileToCloud(); }catch(e){} }, 8000); }catch(e){}
+  }
   updateAdminNav();applyNavMode();maybeShowOnboard();try{maybeAskPermissions()}catch(e){}toast("Conectado à nuvem","info");
   try{startFsTickerLoop()}catch(e){}
+  try{updatePaymentNav()}catch(e){}
+  try{startVitalicioWatch()}catch(e){}
+  try{Promise.resolve(refreshPaidStatusFromCloud()).finally(function(){try{enforceAccessGate()}catch(e){}})}catch(e){try{enforceAccessGate()}catch(e2){}}
 }
 async function loadFromCloud(){
   if(!sb||!cloudUser)return;
@@ -2729,7 +2825,15 @@ async function logout(){
 }
 
 
-function startApp(user){U=user;if(user&&user.toLowerCase()===ADMIN_EMAIL.toLowerCase()&&!cloudUser){cloudUser={email:ADMIN_EMAIL,id:"master-local"}}try{if(user&&user.toLowerCase()!==ADMIN_EMAIL.toLowerCase())ensureClientWorkspace(String(user).toLowerCase());}catch(e){}document.getElementById("loginScreen").classList.add("hidden");document.getElementById("appScreen").classList.remove("hidden");document.getElementById("userDisplay").textContent=user;T=gd("transactions");C=gd("categories",null);if(!C||!C.length){C=DC.slice();sd("categories",C)}L=gd("limits",{});R=gd("reminders");RC=gd("recurring");RU=gd("rules");LN=gd("learned",{});G=gd("goals");VR=gd("valueRules");applyTheme();const sc=localStorage.getItem("fp_primaryColor");if(sc)setPrimaryColor(sc);document.getElementById("reminderDate").value=today();processRecurring();if(typeof isAdmin==="function"&&isAdmin()){showSection("admin");}else{showSection("dashboard");}updateAdminNav();applyNavMode();maybeShowOnboard();try{maybeAskPermissions()}catch(e){}try{startFsTickerLoop()}catch(e){}try{updatePaymentNav()}catch(e){}try{startVitalicioWatch()}catch(e){}try{Promise.resolve(refreshPaidStatusFromCloud()).finally(function(){try{enforceAccessGate()}catch(e){}})}catch(e){try{enforceAccessGate()}catch(e2){}}if(isAdmin()){loadClients().catch(function(){})}
+function startApp(user){U=user;if(user&&user.toLowerCase()===ADMIN_EMAIL.toLowerCase()&&!cloudUser){cloudUser={email:ADMIN_EMAIL,id:"master-local"}}try{if(user&&user.toLowerCase()!==ADMIN_EMAIL.toLowerCase())ensureClientWorkspace(String(user).toLowerCase());}catch(e){}document.getElementById("loginScreen").classList.add("hidden");document.getElementById("appScreen").classList.remove("hidden");document.getElementById("userDisplay").textContent=user;T=gd("transactions");C=gd("categories",null);if(!C||!C.length){C=DC.slice();sd("categories",C)}L=gd("limits",{});R=gd("reminders");RC=gd("recurring");RU=gd("rules");LN=gd("learned",{});G=gd("goals");VR=gd("valueRules");applyTheme();const sc=localStorage.getItem("fp_primaryColor");if(sc)setPrimaryColor(sc);document.getElementById("reminderDate").value=today();processRecurring();if(typeof isAdmin==="function"&&isAdmin()){showSection("admin");}else{showSection("dashboard");}updateAdminNav();applyNavMode();maybeShowOnboard();try{maybeAskPermissions()}catch(e){}try{startFsTickerLoop()}catch(e){}try{updatePaymentNav()}catch(e){}try{startVitalicioWatch()}catch(e){}try{Promise.resolve(refreshPaidStatusFromCloud()).finally(function(){try{enforceAccessGate()}catch(e){}})}catch(e){try{enforceAccessGate()}catch(e2){}}if(isAdmin()){
+  try{ loadClients().catch(function(){}); }catch(e){}
+  try{ startAdminClientsWatch(); }catch(e){}
+  try{ startAdminClientsRealtime(); }catch(e){}
+} else {
+  try{ Promise.resolve(syncMyProfileToCloud()).catch(function(){}); }catch(e){}
+  try{ setTimeout(function(){ try{ syncMyProfileToCloud(); }catch(e){} }, 2500); }catch(e){}
+  try{ setTimeout(function(){ try{ syncMyProfileToCloud(); }catch(e){} }, 8000); }catch(e){}
+}
 if(!T.length&&!localStorage.getItem("fp_tip_"+U)){setTimeout(function(){toast("Dica: digite \"mercado 50\" ou \"salário 3000\" na barra de cima","info");localStorage.setItem("fp_tip_"+U,"1")},800)}}
 
 function processRecurring(){if(!RC.length)return;const now=new Date(),tm=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");let added=0;RC.forEach(r=>{if(!r.active)return;const ds=tm+"-"+String(r.day).padStart(2,"0");if(ds>today())return;if(!T.some(t=>t.recurringId===r.id&&mk(t.date)===tm)){T.push({id:uid(),date:ds,description:r.description+" (recorrente)",amount:r.amount,type:r.type,categoryId:r.categoryId,recurringId:r.id});added++}});if(added){sd("transactions",T);toast(added+" recorrente(s) lançada(s)","info")}}
@@ -2759,7 +2863,7 @@ if(name!=="payment"&&typeof isAdmin==="function"&&!isAdmin()){
     showPaywall(); name="payment";
   }
 }
-document.querySelectorAll("[id^=section-]").forEach(s=>s.classList.add("hidden"));document.getElementById("section-"+name).classList.remove("hidden");document.querySelectorAll(".nav-btn").forEach(btn=>{const a=btn.dataset.section===name;btn.classList.toggle("bg-primary-soft",a);btn.classList.toggle("text-primary",a);btn.classList.toggle("text-slate-600",!a);btn.classList.toggle("dark:text-slate-300",!a)});const titles={dashboard:"Dashboard",ai:"Assistente IA",admin:"Painel Admin",goals:"Metas",report:"Relatório",transactions:"Transações",recurring:"Recorrentes",rules:"Regras & Aprendizado",categories:"Categorias",limits:"Limites",reminders:"Lembretes",compound:"Juros Compostos",charts:"Gráficos",invest:"Investimentos",payment:"Pagamento"};document.getElementById("pageTitle").textContent=titles[name]||name;if(window.innerWidth<1024){document.getElementById("sidebar").classList.add("-translate-x-full");document.getElementById("sidebarOverlay").classList.add("hidden")}if(name==="dashboard")renderDashboard();if(name==="transactions")renderTransactions();if(name==="recurring")renderRecurring();if(name==="rules")renderRules();if(name==="categories")renderCategories();if(name==="limits")renderLimits();if(name==="reminders")renderReminders();if(name==="ai")loadAiSettings();if(name==="admin"){if(!isAdmin()){toast("Acesso negado","error");showSection("dashboard");return}loadClients();try{var ak=document.getElementById("adminPixKey");var aa=document.getElementById("adminPixAmount");if(ak)ak.value=PIX_KEY||localStorage.getItem("fp_pix_key")||"";if(aa)aa.value=String(getPixAmount());try{var aw=document.getElementById("adminWhatsapp");if(aw)aw.value=getAdminWhatsapp()||localStorage.getItem("fp_admin_whatsapp")||"5548988286005";}catch(e){}}catch(e){}}if(name==="goals")renderGoals();if(name==="report")initReport();if(name==="charts")renderCharts();if(name==="invest"){try{initInvestSection()}catch(e){console.warn(e)}}if(name==="payment"){renderPayment()}}
+document.querySelectorAll("[id^=section-]").forEach(s=>s.classList.add("hidden"));document.getElementById("section-"+name).classList.remove("hidden");document.querySelectorAll(".nav-btn").forEach(btn=>{const a=btn.dataset.section===name;btn.classList.toggle("bg-primary-soft",a);btn.classList.toggle("text-primary",a);btn.classList.toggle("text-slate-600",!a);btn.classList.toggle("dark:text-slate-300",!a)});const titles={dashboard:"Dashboard",ai:"Assistente IA",admin:"Painel Admin",goals:"Metas",report:"Relatório",transactions:"Transações",recurring:"Recorrentes",rules:"Regras & Aprendizado",categories:"Categorias",limits:"Limites",reminders:"Lembretes",compound:"Juros Compostos",charts:"Gráficos",invest:"Investimentos",payment:"Pagamento"};document.getElementById("pageTitle").textContent=titles[name]||name;if(window.innerWidth<1024){document.getElementById("sidebar").classList.add("-translate-x-full");document.getElementById("sidebarOverlay").classList.add("hidden")}if(name==="dashboard")renderDashboard();if(name==="transactions")renderTransactions();if(name==="recurring")renderRecurring();if(name==="rules")renderRules();if(name==="categories")renderCategories();if(name==="limits")renderLimits();if(name==="reminders")renderReminders();if(name==="ai")loadAiSettings();if(name==="admin"){if(!isAdmin()){toast("Acesso negado","error");showSection("dashboard");return}try{startAdminClientsWatch()}catch(e){}try{startAdminClientsRealtime()}catch(e){}loadClients();try{var ak=document.getElementById("adminPixKey");var aa=document.getElementById("adminPixAmount");if(ak)ak.value=PIX_KEY||localStorage.getItem("fp_pix_key")||"";if(aa)aa.value=String(getPixAmount());try{var aw=document.getElementById("adminWhatsapp");if(aw)aw.value=getAdminWhatsapp()||localStorage.getItem("fp_admin_whatsapp")||"5548988286005";}catch(e){}}catch(e){}}if(name==="goals")renderGoals();if(name==="report")initReport();if(name==="charts")renderCharts();if(name==="invest"){try{initInvestSection()}catch(e){console.warn(e)}}if(name==="payment"){renderPayment()}}
 function openAddModal(edit){ if(typeof isAppLocked==='function'&&isAppLocked()){ try{showPaywall();showSection('payment');}catch(e){} return; }document.getElementById("transactionModal").classList.remove("hidden");document.getElementById("modalTitle").textContent=edit?"Editar":"Nova Transação";document.getElementById("editId").value=edit?edit.id:"";document.getElementById("tDate").value=edit?edit.date:today();document.getElementById("tDesc").value=edit?edit.description:"";document.getElementById("tAmount").value=edit?edit.amount.toFixed(2).replace(".",","):"";document.getElementById("tType").value=edit?edit.type:"despesa";updateCategoryOptions();if(edit)document.getElementById("tCategory").value=edit.categoryId;document.getElementById("autoCatHint").classList.add("hidden")}
 function closeAddModal(){document.getElementById("transactionModal").classList.add("hidden")}
 function editTransaction(id){const tx=T.find(t=>t.id===id);if(tx)openAddModal(tx)}
@@ -4249,9 +4353,11 @@ function startAdminClientsWatch(){
   try{
     if(window._adminClientsTimer) clearInterval(window._adminClientsTimer);
     if(typeof isAdmin!=="function"||!isAdmin()) return;
+    // A cada 15s busca clientes da nuvem — cadastro em outro aparelho aparece sozinho
     window._adminClientsTimer=setInterval(function(){
-      try{ if(isAdmin()) loadClients(); }catch(e){}
-    }, 60000);
+      try{ if(typeof isAdmin==="function"&&isAdmin()) loadClients(); }catch(e){}
+    }, 15000);
+    try{ setTimeout(function(){ try{ if(isAdmin()) loadClients(); }catch(e){} }, 2500); }catch(e){}
   }catch(e){}
 }
 

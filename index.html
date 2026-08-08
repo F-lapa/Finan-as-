@@ -1025,6 +1025,12 @@ body.app-locked #paywallModal { display: block !important; }
 <button onclick="exportJSON()" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm mb-2"><i class="fas fa-download mr-2"></i>Exportar backup JSON</button>
 <button onclick="clearAllData()" class="w-full px-4 py-2.5 rounded-xl border border-red-300 text-red-500 text-sm"><i class="fas fa-trash mr-2"></i>Apagar todos os dados</button>
 </div>
+<div class="settings-section" id="settingsDeleteAccountBox">
+<p class="text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 mb-2">Zona de perigo</p>
+<p class="text-[11px] text-slate-500 m-0 mb-3 leading-relaxed">Excluir a conta remove seu acesso, apaga seus dados neste aparelho e tira seu cadastro do painel do administrador. Esta ação não pode ser desfeita.</p>
+<input type="password" id="setDeletePass" placeholder="Digite sua senha para confirmar" class="w-full px-3 py-2 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 text-sm outline-none mb-2" autocomplete="current-password">
+<button type="button" onclick="deleteMyAccount()" class="w-full px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-bold"><i class="fas fa-user-slash mr-2"></i>Deletar minha conta</button>
+</div>
 </div></div></div>
 <script>
 
@@ -3077,10 +3083,167 @@ function renderCharts(){
 
 function openSettings(){document.getElementById("settingsModal").classList.remove("hidden");try{loadAiSettings()}catch(e){}
 try{var a=document.getElementById("setAdvancedNav");if(a)a.checked=true;
-var d=document.getElementById("setDarkTheme");if(d)d.checked=document.documentElement.classList.contains("dark")}catch(e){}}
+var d=document.getElementById("setDarkTheme");if(d)d.checked=document.documentElement.classList.contains("dark")}catch(e){}
+try{
+  var delBox=document.getElementById("settingsDeleteAccountBox");
+  if(delBox){
+    var hide=typeof isAdmin==="function" && isAdmin();
+    delBox.style.display=hide?"none":"";
+  }
+  var dp=document.getElementById("setDeletePass"); if(dp) dp.value="";
+}catch(e){}}
 function closeSettings(){document.getElementById("settingsModal").classList.add("hidden")}
 
 function clearAllData(){if(!confirm("Apagar TODOS os dados?"))return;if(!confirm("Tem certeza?"))return;T=[];C=DC.slice();L={};R=[];RC=[];RU=[];LN={};sd("transactions",T);sd("categories",C);sd("limits",L);sd("reminders",R);sd("recurring",RC);sd("rules",RU);sd("learned",LN);toast("Dados apagados");closeSettings();renderDashboard()}
+
+function wipeLocalWorkspaceForLogin(login){
+  login=String(login||"").toLowerCase().trim();
+  if(!login) return;
+  try{
+    var prefix="fp_"+login+"_";
+    var keys=[];
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);
+      if(k && k.indexOf(prefix)===0) keys.push(k);
+    }
+    keys.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+  }catch(e){}
+}
+
+/** Cliente exclui a própria conta (configurações) — some do painel admin */
+async function deleteMyAccount(){
+  try{
+    if(typeof isAdmin==="function" && isAdmin()){
+      toast("A conta administrador não pode ser excluída por aqui","error");
+      return;
+    }
+    var login=String(U||localStorage.getItem("fp_currentUser")||"").toLowerCase().trim();
+    if(!login){
+      toast("Faça login para excluir a conta","error");
+      return;
+    }
+    if(login===(typeof ADMIN_EMAIL!=="undefined"?ADMIN_EMAIL.toLowerCase():"")){
+      toast("Conta protegida","error");
+      return;
+    }
+    var passEl=document.getElementById("setDeletePass");
+    var pass=String((passEl&&passEl.value)||"");
+    if(!pass){
+      toast("Informe sua senha para confirmar a exclusão","error");
+      if(passEl) passEl.focus();
+      return;
+    }
+    // valida senha local
+    var okPass=false;
+    try{
+      var acc=(typeof getAccount==="function"?getAccount(login):null)||null;
+      var stored=acc?(acc.pass||acc.password||""):"";
+      if(stored && String(stored)===pass) okPass=true;
+      if(!okPass){
+        var reg=[];
+        try{ reg=typeof getClientsRegistrySafe==="function"?getClientsRegistrySafe():JSON.parse(localStorage.getItem("fp_clients_registry")||"[]"); }catch(e){}
+        var c=(reg||[]).find(function(x){ return (x.login||"").toLowerCase()===login; });
+        if(c && String(c.password||c.temp_password||"")===pass) okPass=true;
+      }
+    }catch(e){}
+    if(!okPass){
+      toast("Senha incorreta","error");
+      return;
+    }
+    if(!confirm("Tem certeza que deseja DELETAR sua conta?\n\nSeus dados serão apagados e o acesso será removido do painel do administrador. Esta ação não pode ser desfeita.")) return;
+    if(!confirm("Confirme novamente: excluir permanentemente a conta \""+login+"\"?")) return;
+
+    toast("Excluindo conta…","info");
+    var clientId="";
+    var email="";
+    try{
+      var reg0=typeof getClientsRegistrySafe==="function"?getClientsRegistrySafe():JSON.parse(localStorage.getItem("fp_clients_registry")||"[]");
+      var hit=(reg0||[]).find(function(c){ return (c.login||"").toLowerCase()===login; });
+      if(hit){ clientId=String(hit.id||""); email=String(hit.email||""); }
+    }catch(e){}
+    try{
+      var acc2=typeof getAccount==="function"?getAccount(login):null;
+      if(acc2 && acc2.email) email=email||String(acc2.email);
+    }catch(e){}
+
+    // 1) registry local
+    try{
+      var reg=typeof getClientsRegistry==="function"?getClientsRegistry():JSON.parse(localStorage.getItem("fp_clients_registry")||"[]");
+      reg=(reg||[]).filter(function(c){ return (c.login||"").toLowerCase()!==login && String(c.id||"")!==clientId; });
+      if(typeof saveClientsRegistry==="function") saveClientsRegistry(reg);
+      else localStorage.setItem("fp_clients_registry", JSON.stringify(reg));
+    }catch(e){}
+
+    // 2) fp_users
+    try{
+      var users=JSON.parse(localStorage.getItem("fp_users")||"{}");
+      Object.keys(users).forEach(function(k){
+        if(k.toLowerCase()===login) delete users[k];
+      });
+      localStorage.setItem("fp_users", JSON.stringify(users));
+    }catch(e){}
+
+    // 3) paid list
+    try{
+      var paid=JSON.parse(localStorage.getItem("fp_paid_logins")||"[]");
+      paid=(paid||[]).filter(function(x){ return String(x).toLowerCase()!==login; });
+      localStorage.setItem("fp_paid_logins", JSON.stringify(paid));
+    }catch(e){}
+
+    // 4) tombstone (não reaparece no painel deste aparelho)
+    try{ if(typeof adminMarkDeleted==="function") adminMarkDeleted(login, clientId, email); }catch(e){}
+
+    // 5) dados locais do workspace
+    try{ wipeLocalWorkspaceForLogin(login); }catch(e){}
+
+    // 6) nuvem — tabela clients (painel admin)
+    var cloudOk=false;
+    if(typeof sb!=="undefined" && sb){
+      try{
+        if(clientId){
+          var d1=await sb.from("clients").delete().eq("id", clientId);
+          if(!d1.error) cloudOk=true;
+        }
+        var d2=await sb.from("clients").delete().eq("login", login);
+        if(!d2.error) cloudOk=true;
+        if(email){
+          try{ await sb.from("clients").delete().eq("email", email); }catch(e){}
+        }
+        // dados financeiros do usuário autenticado (se houver sessão)
+        if(cloudUser && cloudUser.id && String(cloudUser.id).indexOf("master-local")<0){
+          var uid=cloudUser.id;
+          try{ await sb.from("transactions").delete().eq("user_id", uid); }catch(e){}
+          try{ await sb.from("categories").delete().eq("user_id", uid); }catch(e){}
+          try{ await sb.from("app_state").delete().eq("user_id", uid); }catch(e){}
+        }
+      }catch(e){ console.warn("deleteMyAccount cloud", e); }
+    }
+
+    // 7) cache admin
+    try{
+      window._adminClientsCache=(window._adminClientsCache||[]).filter(function(c){
+        return (c.login||"").toLowerCase()!==login && String(c.id||"")!==clientId;
+      });
+    }catch(e){}
+
+    // 8) encerra sessão
+    try{ if(sb) await sb.auth.signOut(); }catch(e){}
+    try{ localStorage.removeItem("fp_currentUser"); }catch(e){}
+    U=null; cloudUser=null;
+    T=[]; C=(typeof DC!=="undefined"?DC.slice():[]); L={}; R=[]; RC=[]; RU=[]; LN={}; G=[]; VR=[];
+    try{ closeSettings(); }catch(e){}
+    try{
+      document.getElementById("appScreen").classList.add("hidden");
+      document.getElementById("loginScreen").classList.remove("hidden");
+      setAuthTab("login");
+    }catch(e){}
+    try{ if(passEl) passEl.value=""; }catch(e){}
+    toast(cloudOk?"Conta excluída e removida do painel":"Conta excluída neste aparelho","success");
+  }catch(e){
+    console.error(e);
+    toast("Erro ao excluir conta: "+(e.message||e),"error");
+  }
+}
 
 
 function loadAiSettings(){
@@ -3982,6 +4145,14 @@ async function loadClients(){
   var reg=mergeClientLists(local, cloud);
   try{ if(typeof saveClientsRegistry==="function") saveClientsRegistry(reg); else localStorage.setItem("fp_clients_registry",JSON.stringify(reg)); }catch(e){}
   try{ if(typeof syncUsersFromClients==="function") syncUsersFromClients(reg); }catch(e){}
+  try{
+    var delSet=typeof adminGetDeletedSet==="function"?adminGetDeletedSet():{};
+    reg=(reg||[]).filter(function(c){
+      var lg=String(c.login||"").toLowerCase();
+      if(lg && delSet[lg]) return false;
+      return true;
+    });
+  }catch(e){}
   window._adminClientsCache = reg.slice();
   window._adminClientFilter = window._adminClientFilter || "all";
   adminRenderFilterChips();
@@ -4296,11 +4467,15 @@ async function adminDeleteClientDo(login, clientId){
     var target=(reg||[]).find(function(c){
       return (login && (c.login||"").toLowerCase()===login) || (clientId && String(c.id)===clientId);
     });
+    var targetEmail="";
     if(target){
       if(!login) login=String(target.login||"").toLowerCase();
       if(!clientId) clientId=String(target.id||"");
+      targetEmail=String(target.email||"");
     }
     if(!login && !clientId){ toast("Cliente não encontrado","error"); return; }
+    try{ if(typeof adminMarkDeleted==="function") adminMarkDeleted(login, clientId, targetEmail); }catch(e){}
+    try{ if(login && typeof wipeLocalWorkspaceForLogin==="function") wipeLocalWorkspaceForLogin(login); }catch(e){}
 
     // 1) registry local
     try{

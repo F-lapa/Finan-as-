@@ -203,6 +203,11 @@ main .p-4,main .p-6,main{min-width:0}
 
 
 
+
+body.app-locked #sidebar, body.app-locked main header, body.app-locked #smartEntryBox { pointer-events: none; opacity: 0.45; filter: grayscale(0.2); }
+body.app-locked #section-payment, body.app-locked #paywallModal { pointer-events: auto; opacity: 1; filter: none; }
+body.app-locked #paywallModal { display: block !important; }
+
 </style>
 </head>
 <body class="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen overflow-x-hidden">
@@ -614,7 +619,9 @@ main .p-4,main .p-6,main{min-width:0}
       <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
       <input type="search" id="adminClientSearch" oninput="adminFilterClients()" placeholder="Buscar nome, login ou e-mail…" class="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-sm outline-none focus:ring-2 focus:ring-indigo-500/30">
     </div>
-    <div id="adminFilterChips" class="flex flex-wrap gap-1.5"></div>
+    <button type="button" onclick="loadClients()" class="px-3 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shrink-0"><i class="fas fa-cloud-arrow-down mr-1"></i>Sincronizar</button>
+    <div id="adminFilterChips" class="flex flex-wrap gap-1.5 w-full"></div>
+    <p id="adminSyncInfo" class="text-[11px] text-slate-500 w-full m-0"></p>
   </div>
   <div id="clientsList" class="space-y-2.5"></div>
 </div>
@@ -760,7 +767,7 @@ main .p-4,main .p-6,main{min-width:0}
 </section>
 
 <div id="paywallModal" class="fixed inset-0 z-[110] hidden">
-  <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"></div>
+  <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onclick="event.stopPropagation()"></div>
   <div class="absolute inset-x-4 top-1/2 -translate-y-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden relative z-10">
     <div class="p-5 bg-gradient-to-br from-amber-500 to-orange-600 text-white">
       <p class="text-xs font-bold uppercase tracking-wider text-amber-100">Teste encerrado</p>
@@ -1137,6 +1144,7 @@ function isTrialActive(acc){
 function hasFullAccess(){
   if(typeof isAdmin==="function"&&isAdmin()) return true;
   var key=String(U||"").toLowerCase().trim();
+  if(!key) return false;
   // liberados globalmente
   try{
     var paidList=JSON.parse(localStorage.getItem("fp_paid_logins")||"[]");
@@ -1145,8 +1153,24 @@ function hasFullAccess(){
       return true;
     }
   }catch(e){}
-  var acc=ensureAccountTrial(key);
-  if(!acc) return true;
+  var acc=null;
+  try{ acc=ensureAccountTrial(key); }catch(e){ acc=getAccount(key); }
+  // Sem conta: tenta criar trial mínimo a partir do registry
+  if(!acc){
+    try{
+      var reg=typeof getClientsRegistrySafe==="function"?getClientsRegistrySafe():[];
+      var hit=(reg||[]).find(function(c){ return (c.login||"").toLowerCase()===key; });
+      if(hit){
+        acc=upsertAccount(key,{
+          name:hit.name||key, email:hit.email||"",
+          pass:hit.password||hit.temp_password||"",
+          trialEnds:hit.trialEnds||hit.trial_ends||(typeof trialEndDate==="function"?trialEndDate():null),
+          paid:!!hit.paid, createdAt:hit.created_at||hit.createdAt||new Date().toISOString()
+        });
+      }
+    }catch(e){}
+  }
+  if(!acc) return false;
   if(isAccountPaid(acc)) return true;
   if(isTrialActive(acc)) return true;
   return false;
@@ -1225,7 +1249,9 @@ function registerClientInAdminPanel(info){
         email: info.email,
         temp_password: info.pass,
         status: "pendente",
-        trial_ends: info.trialEnds
+        paid: false,
+        trial_ends: info.trialEnds,
+        created_at: info.createdAt || new Date().toISOString()
       }, {onConflict:"login"}).then(function(){}).catch(function(){});
     }
   }catch(e){}
@@ -1295,7 +1321,7 @@ async function doRegister(){
           try{
             await sb.from("clients").upsert({
               name:name, login:login, email:email,
-              temp_password:pass, status:"pendente",
+              temp_password:pass, status:"pendente", paid:false,
               auth_user_id:li.data.user.id,
               trial_ends:trialEnds, created_at:createdAt
             },{onConflict:"login"});
@@ -1314,7 +1340,7 @@ async function doRegister(){
         try{
           await sb.from("clients").upsert({
             name:name, login:login, email:email,
-            temp_password:pass, status:"pendente",
+            temp_password:pass, status:"pendente", paid:false,
             auth_user_id:res.data.user.id,
             trial_ends:trialEnds, created_at:createdAt
           },{onConflict:"login"});
@@ -1354,13 +1380,32 @@ async function doRegister(){
 function showPaywall(){ var m=document.getElementById("paywallModal"); if(m) m.classList.remove("hidden"); try{ startPixPaymentWatcher(); }catch(e){} }
 function hidePaywall(){ var m=document.getElementById("paywallModal"); if(m) m.classList.add("hidden"); }
 function goToPaymentFromPaywall(){ hidePaywall(); showSection("payment"); }
+
+function startAccessGateWatch(){
+  try{
+    if(window._accessGateTimer) clearInterval(window._accessGateTimer);
+    if(typeof isAdmin==="function"&&isAdmin()) return;
+    window._accessGateTimer=setInterval(function(){
+      try{ enforceAccessGate(); }catch(e){}
+    }, 30000);
+  }catch(e){}
+}
+
 function enforceAccessGate(){
   if(typeof isAdmin==="function"&&isAdmin()){ hidePaywall(); updatePaymentNav(); return true; }
   try{ ensureAccountTrial(U); }catch(e){}
   try{ renderTrialPayBanner(); }catch(e){}
-  if(hasFullAccess()){ hidePaywall(); updatePaymentNav(); return true; }
-  // trial realmente expirado — bloqueia e manda pagar
-  showPaywall(); updatePaymentNav(); return false;
+  if(hasFullAccess()){
+    hidePaywall();
+    updatePaymentNav();
+    try{ document.body.classList.remove("app-locked"); }catch(e){}
+    return true;
+  }
+  // trial expirado ou sem acesso — bloqueia o app
+  try{ document.body.classList.add("app-locked"); }catch(e){}
+  showPaywall();
+  updatePaymentNav();
+  return false;
 }
 function updatePaymentNav(){
   var isAdm=typeof isAdmin==="function"&&isAdmin();
@@ -2543,7 +2588,16 @@ function applyTheme(){const th=localStorage.getItem("theme");const dark=th==="da
 function toggleTheme(){const dark=document.documentElement.classList.toggle("dark");localStorage.setItem("theme",dark?"dark":"light");document.getElementById("themeIcon").className=dark?"fas fa-sun":"fas fa-moon";if(!document.getElementById("section-dashboard").classList.contains("hidden"))renderDashboard();if(!document.getElementById("section-charts").classList.contains("hidden"))renderCharts()}
 function setPrimaryColor(c){document.documentElement.style.setProperty("--primary",c);document.documentElement.style.setProperty("--primary-hover",c);localStorage.setItem("fp_primaryColor",c);toast("Cor atualizada")}
 function toggleSidebar(){const s=document.getElementById("sidebar"),o=document.getElementById("sidebarOverlay");const open=!s.classList.contains("-translate-x-full");s.classList.toggle("-translate-x-full",open);o.classList.toggle("hidden",open)}
-function showSection(name){if(name==="payment"&&typeof isAdmin==="function"&&isAdmin()){toast("Admin não usa a seção Pagamento","info");name="dashboard";} 
+function showSection(name){
+  try{
+    if(typeof isAdmin==="function"&&!isAdmin() && typeof isAppLocked==="function" && isAppLocked()){
+      if(name!=="payment"){
+        try{ showPaywall(); }catch(e){}
+        name="payment";
+      }
+    }
+  }catch(e){}
+if(name==="payment"&&typeof isAdmin==="function"&&isAdmin()){toast("Admin não usa a seção Pagamento","info");name="dashboard";} 
 if(name!=="payment"&&typeof isAdmin==="function"&&!isAdmin()){
   try{ ensureAccountTrial(U); }catch(e){}
   if(typeof hasFullAccess==="function"&&!hasFullAccess()){
@@ -2551,7 +2605,7 @@ if(name!=="payment"&&typeof isAdmin==="function"&&!isAdmin()){
   }
 }
 document.querySelectorAll("[id^=section-]").forEach(s=>s.classList.add("hidden"));document.getElementById("section-"+name).classList.remove("hidden");document.querySelectorAll(".nav-btn").forEach(btn=>{const a=btn.dataset.section===name;btn.classList.toggle("bg-primary-soft",a);btn.classList.toggle("text-primary",a);btn.classList.toggle("text-slate-600",!a);btn.classList.toggle("dark:text-slate-300",!a)});const titles={dashboard:"Dashboard",ai:"Assistente IA",admin:"Painel Admin",goals:"Metas",report:"Relatório",transactions:"Transações",recurring:"Recorrentes",rules:"Regras & Aprendizado",categories:"Categorias",limits:"Limites",reminders:"Lembretes",compound:"Juros Compostos",charts:"Gráficos",invest:"Investimentos",payment:"Pagamento"};document.getElementById("pageTitle").textContent=titles[name]||name;if(window.innerWidth<1024){document.getElementById("sidebar").classList.add("-translate-x-full");document.getElementById("sidebarOverlay").classList.add("hidden")}if(name==="dashboard")renderDashboard();if(name==="transactions")renderTransactions();if(name==="recurring")renderRecurring();if(name==="rules")renderRules();if(name==="categories")renderCategories();if(name==="limits")renderLimits();if(name==="reminders")renderReminders();if(name==="ai")loadAiSettings();if(name==="admin"){if(!isAdmin()){toast("Acesso negado","error");showSection("dashboard");return}loadClients();try{var ak=document.getElementById("adminPixKey");var aa=document.getElementById("adminPixAmount");if(ak)ak.value=PIX_KEY||localStorage.getItem("fp_pix_key")||"";if(aa)aa.value=String(getPixAmount());try{var aw=document.getElementById("adminWhatsapp");if(aw)aw.value=getAdminWhatsapp()||localStorage.getItem("fp_admin_whatsapp")||"5548988286005";}catch(e){}}catch(e){}}if(name==="goals")renderGoals();if(name==="report")initReport();if(name==="charts")renderCharts();if(name==="invest"){try{initInvestSection()}catch(e){console.warn(e)}}if(name==="payment"){renderPayment()}}
-function openAddModal(edit){document.getElementById("transactionModal").classList.remove("hidden");document.getElementById("modalTitle").textContent=edit?"Editar":"Nova Transação";document.getElementById("editId").value=edit?edit.id:"";document.getElementById("tDate").value=edit?edit.date:today();document.getElementById("tDesc").value=edit?edit.description:"";document.getElementById("tAmount").value=edit?edit.amount.toFixed(2).replace(".",","):"";document.getElementById("tType").value=edit?edit.type:"despesa";updateCategoryOptions();if(edit)document.getElementById("tCategory").value=edit.categoryId;document.getElementById("autoCatHint").classList.add("hidden")}
+function openAddModal(edit){ if(typeof isAppLocked==='function'&&isAppLocked()){ try{showPaywall();showSection('payment');}catch(e){} return; }document.getElementById("transactionModal").classList.remove("hidden");document.getElementById("modalTitle").textContent=edit?"Editar":"Nova Transação";document.getElementById("editId").value=edit?edit.id:"";document.getElementById("tDate").value=edit?edit.date:today();document.getElementById("tDesc").value=edit?edit.description:"";document.getElementById("tAmount").value=edit?edit.amount.toFixed(2).replace(".",","):"";document.getElementById("tType").value=edit?edit.type:"despesa";updateCategoryOptions();if(edit)document.getElementById("tCategory").value=edit.categoryId;document.getElementById("autoCatHint").classList.add("hidden")}
 function closeAddModal(){document.getElementById("transactionModal").classList.add("hidden")}
 function editTransaction(id){const tx=T.find(t=>t.id===id);if(tx)openAddModal(tx)}
 function updateCategoryOptions(){const type=document.getElementById("tType").value;document.getElementById("tCategory").innerHTML=C.filter(c=>c.type===type).map(c=>"<option value=\""+c.id+"\">"+c.name+"</option>").join("")}
@@ -3517,18 +3571,28 @@ function clientSynthEmail(login,unique){
 }
 function mapCloudClient(row){
   if(!row)return null;
+  var st=String(row.status||"pendente").toLowerCase();
+  if(st==="active") st="pendente";
+  var isPaid=!!(row.paid===true || st==="ativo" || st==="vitalicio" || st==="paid");
+  if(isPaid) st="ativo";
   return {
-    id:row.id||uid(),
+    id:row.id||(typeof uid==="function"?uid():("c_"+Date.now())),
     login:row.login,
     password:row.temp_password||row.password||"",
+    temp_password:row.temp_password||row.password||"",
     name:row.name||row.login,
     role:"client",
-    status:row.status||"active",
+    status:st,
+    paid:isPaid,
+    paymentPending:!!(row.payment_pending||row.paymentPending||st==="aguardando_pix"),
+    trialEnds:row.trial_ends||row.trialEnds||null,
     synthEmail:row.email||row.synthEmail,
-    email:row.email,
+    email:row.email||"",
     authUserId:row.auth_user_id||row.authUserId,
     cloud:true,
-    createdAt:row.created_at||row.createdAt||new Date().toISOString()
+    createdAt:row.created_at||row.createdAt||null,
+    created_at:row.created_at||row.createdAt||null,
+    paidAt:row.paid_at||row.paidAt||null
   };
 }
 async function lookupClientCloud(loginKey){
@@ -3541,28 +3605,70 @@ async function lookupClientCloud(loginKey){
 }
 async function fetchAllClientsCloud(){
   if(!sb)return [];
+  var out=[];
+  var errMsg="";
   try{
-    var res=await sb.from("clients").select("*").order("created_at",{ascending:false}).limit(500);
-    if(res.error||!res.data)return [];
-    return res.data.map(mapCloudClient).filter(Boolean);
-  }catch(e){return []}
+    var res=await sb.from("clients").select("*").order("created_at",{ascending:false}).limit(1000);
+    if(res.error){
+      errMsg=res.error.message||String(res.error);
+      console.warn("fetchAllClientsCloud", res.error);
+      // tenta sem order (alguns schemas)
+      try{
+        var res2=await sb.from("clients").select("*").limit(1000);
+        if(!res2.error && res2.data) out=res2.data;
+        else errMsg=errMsg||(res2.error&&res2.error.message)||"";
+      }catch(e2){}
+    } else if(res.data){
+      out=res.data;
+    }
+  }catch(e){
+    errMsg=String(e.message||e);
+    console.warn("fetchAllClientsCloud", e);
+  }
+  window._lastClientsCloudError=errMsg||"";
+  window._lastClientsCloudCount=(out||[]).length;
+  return (out||[]).map(mapCloudClient).filter(Boolean);
 }
 function mergeClientLists(localList, cloudList){
   var map={};
-  (localList||[]).forEach(function(c){if(c&&c.login)map[(c.login||"").toLowerCase()]=c});
-  (cloudList||[]).forEach(function(c){
-    if(!c||!c.login)return;
-    var k=c.login.toLowerCase();
+  function score(c){
+    var s=0;
+    if(c.cloud) s+=2;
+    if(c.paid) s+=5;
+    if(c.password||c.temp_password) s+=1;
+    if(c.email) s+=1;
+    if(c.createdAt||c.created_at) s+=1;
+    if(c.trialEnds||c.trial_ends) s+=1;
+    return s;
+  }
+  function put(c){
+    if(!c||!c.login) return;
+    var k=String(c.login).toLowerCase();
     var prev=map[k];
-    if(!prev){map[k]=c;return}
-    map[k]=Object.assign({},prev,c,{
-      password:c.password||prev.password,
-      name:c.name||prev.name,
-      synthEmail:c.synthEmail||prev.synthEmail,
-      cloud:true
-    });
+    if(!prev){ map[k]=Object.assign({},c,{login:k}); return; }
+    var a=score(prev), b=score(c);
+    var base=b>=a?Object.assign({},prev,c):Object.assign({},c,prev);
+    // campos sensíveis: nunca perder senha/pago/trial
+    base.login=k;
+    base.password=c.password||c.temp_password||prev.password||prev.temp_password||base.password||"";
+    base.temp_password=base.password;
+    base.paid=!!(prev.paid===true||c.paid===true);
+    if(base.paid) base.status="ativo";
+    base.trialEnds=c.trialEnds||c.trial_ends||prev.trialEnds||prev.trial_ends||base.trialEnds;
+    base.createdAt=c.createdAt||c.created_at||prev.createdAt||prev.created_at||base.createdAt;
+    base.created_at=base.createdAt;
+    base.cloud=!!(prev.cloud||c.cloud);
+    base.name=c.name||prev.name||base.name;
+    base.email=c.email||prev.email||base.email;
+    map[k]=base;
+  }
+  (localList||[]).forEach(put);
+  (cloudList||[]).forEach(put);
+  return Object.keys(map).map(function(k){return map[k]}).sort(function(a,b){
+    var da=new Date(a.createdAt||a.created_at||0).getTime()||0;
+    var db=new Date(b.createdAt||b.created_at||0).getTime()||0;
+    return db-da;
   });
-  return Object.keys(map).map(function(k){return map[k]});
 }
 async function restoreMasterSession(adminRefresh){
   try{
@@ -3597,10 +3703,10 @@ async function generateClient(){
       else if(sign.data&&sign.data.user){
         authUserId=sign.data.user.id;cloudOk=true;
         try{await sb.from("clients").delete().eq("login",login)}catch(e){}
-        var ins=await sb.from("clients").insert({name:name,login:login,email:synth,temp_password:pass,auth_user_id:authUserId,status:"active"}).select();
+        var trialEnds=(typeof trialEndDate==="function"?trialEndDate():new Date(Date.now()+7*864e5).toISOString()); var ins=await sb.from("clients").insert({name:name,login:login,email:synth,temp_password:pass,auth_user_id:authUserId,status:"pendente",paid:false,trial_ends:trialEnds,created_at:new Date().toISOString()}).select();
         if(ins.error){
           // tenta upsert via update
-          var up=await sb.from("clients").upsert({name:name,login:login,email:synth,temp_password:pass,auth_user_id:authUserId,status:"active"},{onConflict:"login"}).select();
+          var up=await sb.from("clients").upsert({name:name,login:login,email:synth,temp_password:pass,auth_user_id:authUserId,status:"pendente",paid:false,trial_ends:trialEnds},{onConflict:"login"}).select();
           if(up.error){cloudMsg="Mapa na nuvem: "+(ins.error.message||up.error.message)}
           else {cloudOk=true;cloudMsg="Cliente gravado na nuvem (upsert)."}
         } else cloudMsg="Cliente gravado na nuvem — funciona em qualquer aparelho.";
@@ -3610,7 +3716,7 @@ async function generateClient(){
   }
   // sempre salva local + mescla com nuvem
   var reg=getClientsRegistry().filter(function(c){return (c.login||"").toLowerCase()!==login});
-  reg.unshift({id:uid(),login:login,password:pass,name:name,role:"client",status:"active",synthEmail:synth,authUserId:authUserId,cloud:cloudOk,createdAt:new Date().toISOString()});
+  reg.unshift({id:uid(),login:login,password:pass,name:name,role:"client",status:"pendente",paid:false,synthEmail:synth,authUserId:authUserId,cloud:cloudOk,createdAt:new Date().toISOString(),trialEnds:(typeof trialEndDate==="function"?trialEndDate():null)});
   saveClientsRegistry(reg);ensureClientWorkspace(login);
   // re-sync from cloud
   try{
@@ -3633,10 +3739,48 @@ async function generateClient(){
   toast(cloudOk?"Cliente criado e salvo na nuvem":"Cliente salvo neste aparelho");
   await loadClients();updateAdminNav();
 }
+
+function syncUsersFromClients(list){
+  try{
+    var users=JSON.parse(localStorage.getItem("fp_users")||"{}");
+    (list||[]).forEach(function(c){
+      if(!c||!c.login) return;
+      var lg=String(c.login).toLowerCase();
+      if(lg===(typeof ADMIN_EMAIL!=="undefined"?ADMIN_EMAIL.toLowerCase():"")) return;
+      var prev=users[lg]||{};
+      var pwd=c.temp_password||c.password||prev.pass||prev.password||"";
+      users[lg]=Object.assign({}, prev, {
+        login: lg,
+        name: c.name||prev.name||lg,
+        email: c.email||prev.email||"",
+        pass: pwd,
+        password: pwd,
+        role: prev.role||"client",
+        trialEnds: c.trialEnds||c.trial_ends||prev.trialEnds,
+        paid: !!(c.paid===true||prev.paid===true),
+        paymentPending: c.paymentPending!=null?c.paymentPending:prev.paymentPending,
+        createdAt: c.created_at||c.createdAt||prev.createdAt
+      });
+    });
+    localStorage.setItem("fp_users",JSON.stringify(users));
+  }catch(e){}
+}
+
+
+function startAdminClientsWatch(){
+  try{
+    if(window._adminClientsTimer) clearInterval(window._adminClientsTimer);
+    if(typeof isAdmin!=="function"||!isAdmin()) return;
+    window._adminClientsTimer=setInterval(function(){
+      try{ if(isAdmin()) loadClients(); }catch(e){}
+    }, 60000);
+  }catch(e){}
+}
+
 async function loadClients(){
   var list=document.getElementById("clientsList");
   if(!list||!isAdmin())return;
-  list.innerHTML='<div class="py-8 text-center text-slate-400 text-xs"><i class="fas fa-circle-notch fa-spin text-lg mb-2"></i><p>Carregando clientes…</p></div>';
+  list.innerHTML='<div class="py-8 text-center text-slate-400 text-xs"><i class="fas fa-circle-notch fa-spin text-lg mb-2"></i><p>Sincronizando clientes da nuvem…</p></div>';
   var local=[];
   try{ local=typeof getClientsRegistry==="function"?getClientsRegistry():JSON.parse(localStorage.getItem("fp_clients_registry")||"[]"); }catch(e){}
   try{
@@ -3644,6 +3788,7 @@ async function loadClients(){
     Object.keys(users).forEach(function(login){
       var u=users[login];
       if(!u)return;
+      if(String(login).toLowerCase()===(typeof ADMIN_EMAIL!=="undefined"?ADMIN_EMAIL.toLowerCase():"")) return;
       if(local.some(function(c){return (c.login||"").toLowerCase()===login.toLowerCase()})) return;
       local.push({
         name:u.name||login, login:login, email:u.email||"",
@@ -3651,25 +3796,67 @@ async function loadClients(){
         password:u.pass||u.password||"",
         status: u.paid?"ativo":(u.paymentPending?"aguardando_pix":"pendente"),
         paid:!!u.paid, paymentPending:!!u.paymentPending,
-        trialEnds:u.trialEnds, created_at:u.createdAt
+        trialEnds:u.trialEnds, created_at:u.createdAt, createdAt:u.createdAt
       });
     });
   }catch(e){}
   var cloud=[];
-  try{ if(typeof fetchAllClientsCloud==="function") cloud=await fetchAllClientsCloud(); }catch(e){}
-  var reg=typeof mergeClientLists==="function"?mergeClientLists(local,cloud):local;
-  // NÃO filtrar/apagar automaticamente aqui — só o admin exclui com confirmação
+  try{ cloud=await fetchAllClientsCloud(); }catch(e){ console.warn(e); }
+  var reg=mergeClientLists(local, cloud);
   try{ if(typeof saveClientsRegistry==="function") saveClientsRegistry(reg); else localStorage.setItem("fp_clients_registry",JSON.stringify(reg)); }catch(e){}
+  try{ if(typeof syncUsersFromClients==="function") syncUsersFromClients(reg); }catch(e){}
   window._adminClientsCache = reg.slice();
   window._adminClientFilter = window._adminClientFilter || "all";
   adminRenderFilterChips();
   adminRenderClientList();
+  // feedback de sincronização
+  try{
+    var nCloud=window._lastClientsCloudCount||0;
+    var err=window._lastClientsCloudError||"";
+    var bar=document.getElementById("adminSyncInfo");
+    if(bar){
+      if(err) bar.innerHTML='<span class="text-amber-600"><i class="fas fa-exclamation-triangle mr-1"></i>Nuvem: '+esc(err)+' · locais: '+reg.length+'</span>';
+      else bar.innerHTML='<span class="text-emerald-600"><i class="fas fa-cloud mr-1"></i>'+nCloud+' na nuvem · '+reg.length+' no painel</span>';
+    }
+  }catch(e){}
+}
+
+
+function daysOnSystem(c){
+  var raw=(c&& (c.createdAt||c.created_at))||null;
+  if(!raw) return null;
+  var t=new Date(raw).getTime();
+  if(isNaN(t)) return null;
+  return Math.max(0, Math.floor((Date.now()-t)/86400000));
+}
+function trialDaysLeftClient(c){
+  if(!c) return 0;
+  if(c.paid===true) return 0;
+  var ends=c.trialEnds||c.trial_ends;
+  if(!ends) return 0;
+  var t=new Date(ends).getTime();
+  if(isNaN(t)) return 0;
+  return Math.max(0, Math.ceil((t-Date.now())/86400000));
+}
+function isAppLocked(){
+  try{
+    if(typeof isAdmin==="function"&&isAdmin()) return false;
+  }catch(e){}
+  try{
+    return !hasFullAccess();
+  }catch(e){ return true; }
 }
 
 function adminClientStatus(c){
-  var paid=!!(c.paid || c.status==="active" || c.status==="ativo");
-  var pendingPay=!!(c.paymentPending || c.status==="payment_pending" || c.status==="aguardando_pix");
+  var st=String(c.status||"").toLowerCase();
+  var paid=!!(c.paid===true || st==="ativo" || st==="vitalicio" || st==="paid");
+  var pendingPay=!!(c.paymentPending || st==="payment_pending" || st==="aguardando_pix");
   if(paid) return "vitalicio";
+  // trial ativo?
+  try{
+    var ends=c.trialEnds||c.trial_ends;
+    if(ends && new Date(ends).getTime()>Date.now()) return "trial";
+  }catch(e){}
   if(pendingPay) return "pix";
   return "pendente";
 }
@@ -3680,6 +3867,7 @@ function adminRenderFilterChips(){
   var f=window._adminClientFilter||"all";
   var chips=[
     {id:"all",label:"Todos"},
+    {id:"trial",label:"Em teste"},
     {id:"pendente",label:"Pendentes"},
     {id:"pix",label:"Aguardando Pix"},
     {id:"vitalicio",label:"Vitalícios"}
@@ -3701,73 +3889,72 @@ function adminFilterClients(){ adminRenderClientList(); }
 function adminRenderClientList(){
   var list=document.getElementById("clientsList");
   if(!list) return;
-  var reg=window._adminClientsCache||[];
-  var q=((document.getElementById("adminClientSearch")||{}).value||"").trim().toLowerCase();
+  var all=window._adminClientsCache||[];
+  var q=((document.getElementById("adminClientSearch")||{}).value||"").toLowerCase().trim();
   var f=window._adminClientFilter||"all";
-  var filtered=reg.filter(function(c){
+  var rows=all.filter(function(c){
+    if(!c||!c.login) return false;
+    if(String(c.login).toLowerCase()===(typeof ADMIN_EMAIL!=="undefined"?ADMIN_EMAIL.toLowerCase():"")) return false;
     var st=adminClientStatus(c);
     if(f!=="all" && st!==f) return false;
     if(!q) return true;
     var blob=((c.name||"")+" "+(c.login||"")+" "+(c.email||"")).toLowerCase();
     return blob.indexOf(q)>=0;
   });
-  var countEl=document.getElementById("adminClientCount");
-  if(countEl) countEl.textContent = filtered.length+" de "+reg.length+" cliente(s)";
-
-  var stats=document.getElementById("adminStatsBar");
-  if(stats){
-    var pend=reg.filter(function(c){return adminClientStatus(c)==="pendente"}).length;
-    var wait=reg.filter(function(c){return adminClientStatus(c)==="pix"}).length;
-    var paid=reg.filter(function(c){return adminClientStatus(c)==="vitalicio"}).length;
-    stats.innerHTML=
-      '<div class="rounded-2xl p-2.5 text-center" style="background:rgba(255,255,255,.1)"><p class="text-[10px] text-indigo-200 m-0">Pendentes</p><p class="font-black text-lg m-0">'+pend+'</p></div>'+
-      '<div class="rounded-2xl p-2.5 text-center" style="background:rgba(255,255,255,.1)"><p class="text-[10px] text-indigo-200 m-0">Aguard. Pix</p><p class="font-black text-lg m-0">'+wait+'</p></div>'+
-      '<div class="rounded-2xl p-2.5 text-center" style="background:rgba(255,255,255,.1)"><p class="text-[10px] text-indigo-200 m-0">Vitalícios</p><p class="font-black text-lg m-0">'+paid+'</p></div>';
+  // stats
+  var bar=document.getElementById("adminStatsBar");
+  if(bar){
+    var total=all.filter(function(c){return c&&c.login && String(c.login).toLowerCase()!==(typeof ADMIN_EMAIL!=="undefined"?ADMIN_EMAIL.toLowerCase():"");}).length;
+    var paid=all.filter(function(c){return adminClientStatus(c)==="vitalicio"}).length;
+    var trial=all.filter(function(c){return adminClientStatus(c)==="trial"}).length;
+    var pend=all.filter(function(c){return adminClientStatus(c)==="pendente"||adminClientStatus(c)==="pix"}).length;
+    bar.innerHTML=
+      '<div class="rounded-2xl p-2.5 text-center" style="background:rgba(255,255,255,.1)"><p class="text-[10px] text-indigo-200 m-0">Clientes</p><p class="font-black text-lg m-0">'+total+'</p></div>'+
+      '<div class="rounded-2xl p-2.5 text-center" style="background:rgba(255,255,255,.1)"><p class="text-[10px] text-indigo-200 m-0">Em teste</p><p class="font-black text-lg m-0">'+trial+'</p></div>'+
+      '<div class="rounded-2xl p-2.5 text-center" style="background:rgba(255,255,255,.1)"><p class="text-[10px] text-indigo-200 m-0">Vitalícios</p><p class="font-black text-lg m-0">'+paid+'</p></div>'+
+      '<div class="rounded-2xl p-2.5 text-center col-span-3 sm:col-span-1" style="background:rgba(255,255,255,.1)"><p class="text-[10px] text-indigo-200 m-0">Aguardando</p><p class="font-black text-lg m-0">'+pend+'</p></div>';
+    try{ bar.className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4"; }catch(e){}
   }
-
-  if(!filtered.length){
-    list.innerHTML='<div class="py-10 text-center text-slate-400"><i class="fas fa-users text-3xl mb-2 opacity-40"></i><p class="text-sm font-medium m-0">Nenhum cliente encontrado</p><p class="text-xs mt-1 m-0">Cadastre manualmente ou aguarde registros do app</p></div>';
+  if(!rows.length){
+    list.innerHTML='<div class="py-10 text-center text-slate-400 text-sm"><i class="fas fa-users text-2xl mb-2 opacity-40"></i><p>Nenhum cliente neste filtro.</p><p class="text-xs mt-1">Toque em <b>Sincronizar</b> para buscar cadastros de outros aparelhos.</p></div>';
     return;
   }
-
-  list.innerHTML=filtered.map(function(c, idx){
-    var login=String(c.login||"");
+  list.innerHTML=rows.map(function(c){
+    var login=String(c.login||"").toLowerCase();
+    var pass=c.temp_password||c.password||"—";
     var st=adminClientStatus(c);
     var paid=st==="vitalicio";
-    var statusLabel=paid?"Vitalício":(st==="pix"?"Aguardando Pix":"Pendente");
-    var statusCls=paid?"bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300":
-      (st==="pix"?"bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300":"bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200");
-    var pass=c.temp_password||c.password||"—";
-    var initial=(c.name||login||"?").trim().charAt(0).toUpperCase();
-    var cid=String(c.id||"");
-    return '<div class="group rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 p-3.5 sm:p-4" data-admin-login="'+esc(login)+'" data-admin-id="'+esc(cid)+'">'+
-      '<div class="flex items-start gap-3">'+
-        '<div class="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black text-white shrink-0" style="background:linear-gradient(135deg,#4f46e5,#7c3aed)">'+esc(initial)+'</div>'+
-        '<div class="min-w-0 flex-1">'+
-          '<div class="flex items-start justify-between gap-2">'+
-            '<div class="min-w-0"><p class="font-extrabold text-sm m-0 truncate">'+esc(c.name||"—")+'</p>'+
-            '<p class="text-[11px] text-slate-500 m-0 mt-0.5 truncate">'+esc(c.email||"sem e-mail")+'</p></div>'+
-            '<span class="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full shrink-0 '+statusCls+'">'+statusLabel+'</span>'+
-          '</div>'+
-          '<div class="grid grid-cols-2 gap-2 mt-2.5">'+
-            '<div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 px-2.5 py-1.5"><p class="text-[10px] text-slate-400 m-0">Login</p><p class="font-mono text-xs font-bold m-0 truncate">'+esc(login)+'</p></div>'+
-            '<div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 px-2.5 py-1.5"><p class="text-[10px] text-slate-400 m-0">Senha</p><p class="font-mono text-xs font-bold m-0 truncate">'+esc(pass)+'</p></div>'+
-          '</div>'+
-          '<div class="flex flex-wrap gap-2 mt-3">'+
-            '<button type="button" class="admin-btn-pass px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-600 text-xs font-bold"><i class="fas fa-key mr-1"></i>Senha</button>'+
-            (!paid?'<button type="button" class="admin-btn-grant flex-1 min-w-[120px] px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold"><i class="fas fa-check mr-1"></i>Liberar vitalício</button>':'<span class="flex-1 text-center text-xs font-bold text-emerald-600 py-2"><i class="fas fa-crown mr-1"></i>Acesso liberado</span>')+
-            '<button type="button" class="admin-btn-delete px-3 py-2 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/30 text-rose-600 text-xs font-bold"><i class="fas fa-trash-alt mr-1"></i>Excluir</button>'+
-          '</div>'+
+    var statusLabel=paid?"Vitalício":(st==="trial"?"Em teste":(st==="pix"?"Aguardando Pix":"Pendente"));
+    var statusCls=paid?"bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300":(st==="trial"?"bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300":(st==="pix"?"bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300":"bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"));
+    var daysSys=typeof daysOnSystem==="function"?daysOnSystem(c):null;
+    var daysTrial=typeof trialDaysLeftClient==="function"?trialDaysLeftClient(c):0;
+    var daysSysLabel=daysSys==null?"—":(daysSys===0?"hoje":(daysSys+" dia"+(daysSys===1?"":"s")));
+    var trialLabel=paid?"liberado":(st==="trial"?("faltam "+daysTrial+"d"):"teste acabou");
+    return '<div class="admin-client-card rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 p-3 sm:p-3.5" data-admin-login="'+esc(login)+'" data-admin-id="'+esc(String(c.id||""))+'">'+
+      '<div class="flex flex-col gap-2">'+
+        '<div class="flex items-start justify-between gap-2">'+
+          '<div class="min-w-0"><p class="font-extrabold text-sm m-0 truncate">'+esc(c.name||"—")+'</p>'+
+          '<p class="text-[11px] text-slate-500 m-0 mt-0.5 truncate">'+esc(c.email||"sem e-mail")+(c.cloud?' · <span class="text-indigo-500">nuvem</span>':'')+'</p></div>'+
+          '<span class="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full shrink-0 '+statusCls+'">'+statusLabel+'</span>'+
+        '</div>'+
+        '<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">'+
+          '<div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 px-2.5 py-1.5"><p class="text-[10px] text-slate-400 m-0">Login</p><p class="font-mono text-xs font-bold m-0 truncate">'+esc(login)+'</p></div>'+
+          '<div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 px-2.5 py-1.5"><p class="text-[10px] text-slate-400 m-0">Senha</p><p class="font-mono text-xs font-bold m-0 truncate">'+esc(pass)+'</p></div>'+
+          '<div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 px-2.5 py-1.5"><p class="text-[10px] text-slate-400 m-0">No sistema</p><p class="text-xs font-bold m-0">'+daysSysLabel+'</p></div>'+
+          '<div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 px-2.5 py-1.5"><p class="text-[10px] text-slate-400 m-0">Teste</p><p class="text-xs font-bold m-0">'+trialLabel+'</p></div>'+
+        '</div>'+
+        '<div class="flex flex-wrap gap-2 mt-1">'+
+          '<button type="button" class="admin-btn-pass px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-600 text-xs font-bold"><i class="fas fa-key mr-1"></i>Senha</button>'+
+          (!paid?'<button type="button" class="admin-btn-grant flex-1 min-w-[120px] px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold"><i class="fas fa-check mr-1"></i>Liberar vitalício</button>':'<span class="flex-1 text-center text-xs font-bold text-emerald-600 py-2"><i class="fas fa-crown mr-1"></i>Acesso liberado</span>')+
+          '<button type="button" class="admin-btn-delete px-3 py-2 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/30 text-rose-600 text-xs font-bold"><i class="fas fa-trash-alt mr-1"></i>Excluir</button>'+
         '</div>'+
       '</div>'+
     '</div>';
   }).join("");
 
-  // event delegation — evita problemas de aspas no onclick
   list.querySelectorAll(".admin-btn-delete").forEach(function(btn){
     btn.onclick=function(ev){
-      ev.preventDefault();
-      ev.stopPropagation();
+      ev.preventDefault(); ev.stopPropagation();
       var card=btn.closest("[data-admin-login]");
       var lg=card?card.getAttribute("data-admin-login"):"";
       var id=card?card.getAttribute("data-admin-id"):"";
@@ -3776,20 +3963,18 @@ function adminRenderClientList(){
   });
   list.querySelectorAll(".admin-btn-pass").forEach(function(btn){
     btn.onclick=function(ev){
-      ev.preventDefault();
-      ev.stopPropagation();
+      ev.preventDefault(); ev.stopPropagation();
       var card=btn.closest("[data-admin-login]");
       var lg=card?card.getAttribute("data-admin-login"):"";
-      adminSetClientPassword(lg);
+      if(typeof adminSetClientPassword==="function") adminSetClientPassword(lg);
     };
   });
   list.querySelectorAll(".admin-btn-grant").forEach(function(btn){
     btn.onclick=function(ev){
-      ev.preventDefault();
-      ev.stopPropagation();
+      ev.preventDefault(); ev.stopPropagation();
       var card=btn.closest("[data-admin-login]");
       var lg=card?card.getAttribute("data-admin-login"):"";
-      adminGrantLifetime(lg);
+      if(typeof adminGrantLifetime==="function") adminGrantLifetime(lg);
     };
   });
 }

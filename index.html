@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="description" content="Controle inteligente de receitas e despesas"/>
 <title>Finanças Smart</title>
-<!-- FS_SYNC_FIX_V3: REST clients sync create+delete -->
+<!-- FS_SYNC_FIX_V4: cloud-first admin list + tombstone fix -->
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1090,12 +1090,16 @@ const ADMIN_EMAIL="fernandolapa1987@gmail.com";
 const ADMIN_PASS="cavalassa";
 // WhatsApp do admin para avisar pagamento (só números, com DDI 55). Pode alterar no painel.
 var ADMIN_WHATSAPP = localStorage.getItem("fp_admin_whatsapp") || "5548988286005";
-try{ if(!localStorage.getItem("fp_deleted_clients_cleared_v2")){ localStorage.removeItem("fp_deleted_clients"); localStorage.setItem("fp_deleted_clients_cleared_v2","1"); } }catch(e){}
+try{ if(!localStorage.getItem("fp_deleted_clients_cleared_v4")){ localStorage.removeItem("fp_deleted_clients"); localStorage.setItem("fp_deleted_clients_cleared_v4","1"); } }catch(e){}
 
 
 function isAdmin(){
-  var em=((cloudUser&&cloudUser.email)||U||"").toLowerCase();
-  return em===ADMIN_EMAIL.toLowerCase();
+  try{
+    var em=((cloudUser&&cloudUser.email)||U||localStorage.getItem("fp_currentUser")||"").toLowerCase();
+    if(em===String(ADMIN_EMAIL).toLowerCase()) return true;
+    if(cloudUser && cloudUser.id==="master-local") return true;
+    return false;
+  }catch(e){ return false; }
 }
 
 var PIX_KEY = localStorage.getItem("fp_pix_key") || "8d0c36ef-c532-4766-83a9-ae67df37d49e";
@@ -2653,7 +2657,7 @@ async function startAppCloud(user){
     showSection("dashboard");
     try{ Promise.resolve(syncMyProfileToCloud()).catch(function(){}); }catch(e){}
     try{ setTimeout(function(){ try{ syncMyProfileToCloud(); }catch(e){} }, 2500); }catch(e){}
-    try{ setTimeout(function(){ try{ syncMyProfileToCloud(); }catch(e){} }, 8000); }catch(e){}
+    try{ setTimeout(function(){ try{ syncMyProfileToCloud(); }catch(e){} }, 5000); }catch(e){}
   }
   updateAdminNav();applyNavMode();maybeShowOnboard();try{maybeAskPermissions()}catch(e){}toast("Conectado à nuvem","info");
   try{startFsTickerLoop()}catch(e){}
@@ -2794,7 +2798,7 @@ function startApp(user){U=user;if(user&&user.toLowerCase()===ADMIN_EMAIL.toLower
 } else {
   try{ Promise.resolve(syncMyProfileToCloud()).catch(function(){}); }catch(e){}
   try{ setTimeout(function(){ try{ syncMyProfileToCloud(); }catch(e){} }, 2500); }catch(e){}
-  try{ setTimeout(function(){ try{ syncMyProfileToCloud(); }catch(e){} }, 8000); }catch(e){}
+  try{ setTimeout(function(){ try{ syncMyProfileToCloud(); }catch(e){} }, 5000); }catch(e){}
 }
 if(!T.length&&!localStorage.getItem("fp_tip_"+U)){setTimeout(function(){toast("Dica: digite \"mercado 50\" ou \"salário 3000\" na barra de cima","info");localStorage.setItem("fp_tip_"+U,"1")},800)}}
 
@@ -4136,34 +4140,34 @@ async function fetchAllClientsCloud(){
   var out=[];
   var errMsg="";
   try{
-    var res = await clientsRest("GET", "clients?select=*&order=created_at.desc&limit=1000");
-    if(!res.ok){
-      errMsg = res.error || "falha ao buscar clientes";
-      console.warn("fetchAllClientsCloud", errMsg);
-      // fallback supabase-js se REST falhar
-      try{
-        if(typeof sb!=="undefined" && sb){
-          var r2=await sb.from("clients").select("*").limit(1000);
-          if(!r2.error && r2.data){ out=r2.data; errMsg=""; }
-        }
-      }catch(e2){}
+    if(typeof clientsRest!=="function"){
+      errMsg="clientsRest indisponível";
     } else {
-      out = Array.isArray(res.data) ? res.data : [];
+      var res = await clientsRest("GET", "clients?select=*&order=created_at.desc&limit=1000");
+      if(!res.ok){
+        errMsg = res.error || "falha ao buscar clientes";
+        console.warn("fetchAllClientsCloud", errMsg);
+      } else {
+        out = Array.isArray(res.data) ? res.data : [];
+      }
     }
   }catch(e){
     errMsg=String(e.message||e);
     console.warn("fetchAllClientsCloud", e);
   }
+  // fallback supabase-js
+  if(!out.length && errMsg && typeof sb!=="undefined" && sb){
+    try{
+      var r2=await sb.from("clients").select("*").limit(1000);
+      if(!r2.error && r2.data){ out=r2.data; errMsg=""; }
+    }catch(e2){}
+  }
   window._lastClientsCloudError=errMsg||"";
   window._lastClientsCloudCount=(out||[]).length;
   return (out||[]).map(mapCloudClient).filter(function(c){
-    if(!c) return false;
+    if(!c || !c.login) return false;
     var st=String(c.status||"").toLowerCase();
     if(st==="excluido"||st==="deleted"||st==="excluído") return false;
-    try{
-      var delSet=typeof adminGetDeletedSet==="function"?adminGetDeletedSet():{};
-      if(c.login && delSet[String(c.login).toLowerCase()]) return false;
-    }catch(e){}
     return true;
   });
 }
@@ -4309,10 +4313,10 @@ function startAdminClientsWatch(){
   try{
     if(window._adminClientsTimer) clearInterval(window._adminClientsTimer);
     if(typeof isAdmin!=="function"||!isAdmin()) return;
-    // A cada 8s busca clientes da nuvem — cadastro/exclusão em outro aparelho aparece sozinho
+    // A cada 5s busca clientes da nuvem — cadastro/exclusão em outro aparelho aparece sozinho
     window._adminClientsTimer=setInterval(function(){
       try{ if(typeof isAdmin==="function"&&isAdmin()) loadClients(); }catch(e){}
-    }, 8000);
+    }, 5000);
     try{ setTimeout(function(){ try{ if(isAdmin()) loadClients(); }catch(e){} }, 2500); }catch(e){}
   }catch(e){}
 }
@@ -4335,24 +4339,42 @@ function startAdminClientsRealtime(){
 
 async function loadClients(){
   var list=document.getElementById("clientsList");
-  if(!list||!isAdmin())return;
+  if(!list) return;
+  // Não depende de isAdmin falhar por sessão estranha — confere também U/cloudUser
+  var adminOk=false;
+  try{ adminOk=typeof isAdmin==="function"&&isAdmin(); }catch(e){}
+  if(!adminOk){
+    try{
+      var u=(U||localStorage.getItem("fp_currentUser")||"").toLowerCase();
+      if(u===String(ADMIN_EMAIL).toLowerCase()) adminOk=true;
+      if(cloudUser && cloudUser.email && String(cloudUser.email).toLowerCase()===String(ADMIN_EMAIL).toLowerCase()) adminOk=true;
+    }catch(e){}
+  }
+  if(!adminOk) return;
+
   list.innerHTML='<div class="py-8 text-center text-slate-400 text-xs"><i class="fas fa-circle-notch fa-spin text-lg mb-2"></i><p>Sincronizando clientes da nuvem…</p></div>';
-  // autentica admin na nuvem antes de buscar
+
+  // NUVEM = fonte da verdade (REST)
+  var cloud=[];
+  var errMsg="";
   try{
-    var auth=await ensureAdminCloudSession();
-    if(!auth.ok){
-      console.warn("admin cloud session", auth.error);
-    }
-  }catch(e){}
+    cloud = await fetchAllClientsCloud();
+  }catch(e){
+    errMsg=String(e.message||e);
+    console.warn("loadClients cloud", e);
+  }
+  errMsg = errMsg || window._lastClientsCloudError || "";
+
+  // Locais só como complemento (senha etc.)
   var local=[];
   try{ local=typeof getClientsRegistry==="function"?getClientsRegistry():JSON.parse(localStorage.getItem("fp_clients_registry")||"[]"); }catch(e){}
   try{
     var users=JSON.parse(localStorage.getItem("fp_users")||"{}");
     Object.keys(users).forEach(function(login){
       var u=users[login];
-      if(!u)return;
-      if(String(login).toLowerCase()===(typeof ADMIN_EMAIL!=="undefined"?ADMIN_EMAIL.toLowerCase():"")) return;
-      if(local.some(function(c){return (c.login||"").toLowerCase()===login.toLowerCase()})) return;
+      if(!u) return;
+      if(String(login).toLowerCase()===String(ADMIN_EMAIL).toLowerCase()) return;
+      if(local.some(function(c){ return (c.login||"").toLowerCase()===login.toLowerCase(); })) return;
       local.push({
         name:u.name||login, login:login, email:u.email||"",
         temp_password:u.pass||u.password||"",
@@ -4363,34 +4385,50 @@ async function loadClients(){
       });
     });
   }catch(e){}
-  var cloud=[];
-  try{ cloud=await fetchAllClientsCloud(); }catch(e){ console.warn(e); }
-  var reg=mergeClientLists(local, cloud);
+
+  // Se a nuvem respondeu, ela manda. Locais só preenchem senha/nome faltando.
+  var reg;
+  if((cloud||[]).length || !errMsg){
+    reg = mergeClientLists(local, cloud);
+    // Clientes que existem na nuvem NÃO podem ficar presos em "excluído" local
+    try{
+      var delSet = JSON.parse(localStorage.getItem("fp_deleted_clients")||"{}")||{};
+      var changed=false;
+      (cloud||[]).forEach(function(c){
+        var lg=String(c.login||"").toLowerCase();
+        if(lg && delSet[lg]){ delete delSet[lg]; changed=true; }
+      });
+      if(changed) localStorage.setItem("fp_deleted_clients", JSON.stringify(delSet));
+    }catch(e){}
+  } else {
+    reg = local.slice();
+  }
+
+  // Filtra só status excluído vindo da nuvem (não tombstone local contra a nuvem)
+  reg=(reg||[]).filter(function(c){
+    if(!c || !c.login) return false;
+    if(String(c.login).toLowerCase()===String(ADMIN_EMAIL).toLowerCase()) return false;
+    var st=String(c.status||"").toLowerCase();
+    if(st==="excluido"||st==="deleted"||st==="excluído") return false;
+    return true;
+  });
+
   try{ if(typeof saveClientsRegistry==="function") saveClientsRegistry(reg); else localStorage.setItem("fp_clients_registry",JSON.stringify(reg)); }catch(e){}
   try{ if(typeof syncUsersFromClients==="function") syncUsersFromClients(reg); }catch(e){}
-  try{
-    var delSet=typeof adminGetDeletedSet==="function"?adminGetDeletedSet():{};
-    reg=(reg||[]).filter(function(c){
-      var lg=String(c.login||"").toLowerCase();
-      var st=String(c.status||"").toLowerCase();
-      if(lg && delSet[lg]) return false;
-      if(st==="excluido"||st==="deleted"||st==="excluído") return false;
-      return true;
-    });
-  }catch(e){}
+
   window._adminClientsCache = reg.slice();
   window._adminClientFilter = window._adminClientFilter || "all";
-  adminRenderFilterChips();
-  adminRenderClientList();
+  try{ adminRenderFilterChips(); }catch(e){}
+  try{ adminRenderClientList(); }catch(e){}
+
   try{
     var nCloud=window._lastClientsCloudCount||0;
-    var err=window._lastClientsCloudError||"";
     var bar=document.getElementById("adminSyncInfo");
     if(bar){
-      if(err){
-        bar.innerHTML='<span class="text-amber-700 dark:text-amber-300"><i class="fas fa-exclamation-triangle mr-1"></i>Nuvem: '+esc(err)+'. Locais neste aparelho: '+reg.length+'. Se a política RLS bloquear o SELECT, libere leitura da tabela <b>clients</b> para o admin no Supabase.</span>';
+      if(errMsg && !nCloud){
+        bar.innerHTML='<span class="text-amber-700 dark:text-amber-300"><i class="fas fa-exclamation-triangle mr-1"></i>Falha ao ler nuvem: '+esc(errMsg)+'</span>';
       } else {
-        bar.innerHTML='<span class="text-emerald-600"><i class="fas fa-cloud mr-1"></i>'+nCloud+' cliente(s) na nuvem · '+reg.length+' no painel (todos os aparelhos)</span>';
+        bar.innerHTML='<span class="text-emerald-600"><i class="fas fa-cloud mr-1"></i>'+nCloud+' na nuvem · '+reg.length+' no painel · atualizado '+new Date().toLocaleTimeString("pt-BR")+'</span>';
       }
     }
   }catch(e){}
@@ -6292,7 +6330,9 @@ if("serviceWorker" in navigator){
     navigator.serviceWorker.getRegistrations().then(function(regs){
       return Promise.all(regs.map(function(r){ return r.unregister(); }));
     }).then(function(){
-      return navigator.serviceWorker.register("./sw.js?v=7");
+      return navigator.serviceWorker.register("./sw.js?v=9").then(function(reg){
+      try{ reg.update(); }catch(e){}
+    });
     }).catch(function(){});
   });
 }

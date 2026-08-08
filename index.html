@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="description" content="Controle inteligente de receitas e despesas"/>
 <title>Finanças Smart</title>
-<!-- FS_SYNC_FIX_V6: admin list = cloud only (delete sync) -->
+<!-- FS_SYNC_FIX_V6 + FS_WELCOME_V1 -->
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -169,6 +169,20 @@ main .p-4,main .p-6,main{min-width:0}
 }
 
 .welcome-hero{animation:welcomeIn .55s cubic-bezier(.22,1,.36,1)}
+.welcome-overlay{position:fixed;inset:0;z-index:180;display:flex;align-items:center;justify-content:center;padding:1rem;background:radial-gradient(ellipse 120% 80% at 50% -20%,rgba(99,102,241,.55),transparent 55%),radial-gradient(ellipse 80% 60% at 100% 100%,rgba(139,92,246,.35),transparent 50%),rgba(15,23,42,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);animation:welcomeFadeIn .35s ease}
+.welcome-overlay.welcome-out{animation:welcomeFadeOut .4s ease forwards;pointer-events:none}
+@keyframes welcomeFadeIn{from{opacity:0}to{opacity:1}}
+@keyframes welcomeFadeOut{to{opacity:0;visibility:hidden}}
+.welcome-card{width:100%;max-width:420px;border-radius:1.75rem;background:linear-gradient(165deg,#fff 0%,#f8fafc 100%);box-shadow:0 25px 60px rgba(15,23,42,.35),0 0 0 1px rgba(255,255,255,.2);padding:1.75rem 1.5rem 1.5rem;position:relative;overflow:hidden;animation:welcomePop .5s cubic-bezier(.22,1,.36,1)}
+.dark .welcome-card{background:linear-gradient(165deg,#0f172a 0%,#1e1b4b 100%);box-shadow:0 25px 60px rgba(0,0,0,.5),0 0 0 1px rgba(99,102,241,.25)}
+@keyframes welcomePop{from{opacity:0;transform:translateY(24px) scale(.94)}to{opacity:1;transform:none}}
+.welcome-card::before{content:"";position:absolute;top:-60px;right:-40px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(99,102,241,.2),transparent 70%);pointer-events:none}
+.welcome-icon-wrap{width:72px;height:72px;border-radius:1.35rem;background:linear-gradient(135deg,#6366f1,#8b5cf6,#a855f7);display:flex;align-items:center;justify-content:center;margin:0 auto 1.1rem;box-shadow:0 12px 28px rgba(99,102,241,.45);animation:welcomeIcon .7s cubic-bezier(.34,1.56,.64,1) .1s both}
+@keyframes welcomeIcon{from{opacity:0;transform:scale(.3) rotate(-12deg)}to{opacity:1;transform:none}}
+.welcome-step{display:flex;gap:.75rem;align-items:flex-start;padding:.65rem .75rem;border-radius:1rem;background:rgba(248,250,252,.9);border:1px solid rgba(148,163,184,.2)}
+.dark .welcome-step{background:rgba(30,27,75,.4);border-color:rgba(99,102,241,.25)}
+.welcome-step-num{flex-shrink:0;width:26px;height:26px;border-radius:999px;background:linear-gradient(135deg,#6366f1,#7c3aed);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+
 .welcome-name{animation:welcomeIn .7s cubic-bezier(.22,1,.36,1) .05s both}
 @keyframes welcomeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 
@@ -238,6 +252,53 @@ body.app-locked #paywallModal { display: block !important; }
   <p id="splashSub" class="text-indigo-100 text-sm mt-2 opacity-0 splash-sub">Controle inteligente</p>
   <div class="mt-8 w-32 h-1 rounded-full bg-white/20 overflow-hidden"><div id="splashBar" class="h-full w-0 bg-white rounded-full splash-bar"></div></div>
 </div>
+<!-- Tela de boas-vindas pós-cadastro -->
+<div id="welcomeModal" class="welcome-overlay hidden" style="display:none" aria-modal="true" role="dialog">
+  <div class="welcome-card">
+    <div class="welcome-icon-wrap">
+      <i class="fas fa-hand-sparkles text-white text-2xl"></i>
+    </div>
+    <p class="text-center text-[11px] font-extrabold uppercase tracking-[0.14em] text-indigo-500 mb-1">Finanças Smart</p>
+    <h2 class="text-center text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white leading-tight m-0">
+      Olá, <span id="welcomeUserName" class="welcome-name text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-300 dark:to-violet-300">!</span>
+    </h2>
+    <p class="text-center text-sm text-slate-500 dark:text-slate-400 mt-2 mb-4 leading-relaxed">
+      Sua conta está pronta. Você tem <strong class="text-indigo-600 dark:text-indigo-300">7 dias grátis</strong> para organizar receitas, despesas e metas — no seu ritmo.
+    </p>
+    <div class="space-y-2 mb-5">
+      <div class="welcome-step">
+        <span class="welcome-step-num">1</span>
+        <div>
+          <p class="text-xs font-bold text-slate-800 dark:text-slate-100 m-0">Lance o primeiro gasto ou receita</p>
+          <p class="text-[11px] text-slate-500 m-0 mt-0.5">Use a barra inteligente no topo: <span class="font-mono text-indigo-500">mercado 50</span></p>
+        </div>
+      </div>
+      <div class="welcome-step">
+        <span class="welcome-step-num">2</span>
+        <div>
+          <p class="text-xs font-bold text-slate-800 dark:text-slate-100 m-0">Acompanhe no Dashboard</p>
+          <p class="text-[11px] text-slate-500 m-0 mt-0.5">Saldo, gráficos e insights atualizam sozinhos.</p>
+        </div>
+      </div>
+      <div class="welcome-step">
+        <span class="welcome-step-num">3</span>
+        <div>
+          <p class="text-xs font-bold text-slate-800 dark:text-slate-100 m-0">Explore metas e investimentos</p>
+          <p class="text-[11px] text-slate-500 m-0 mt-0.5">Conteúdo educativo para dar o próximo passo com segurança.</p>
+        </div>
+      </div>
+    </div>
+    <div class="rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/50 px-3 py-2.5 mb-4 flex items-center gap-2">
+      <i class="fas fa-gift text-emerald-500"></i>
+      <p class="text-[11px] text-emerald-800 dark:text-emerald-300 m-0 leading-snug"><strong>Teste liberado</strong> · depois um Pix único libera o acesso vitalício, sem mensalidade.</p>
+    </div>
+    <button type="button" onclick="dismissWelcomeModal()" class="btn-primary w-full py-3.5 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2">
+      Começar a usar <i class="fas fa-arrow-right text-xs"></i>
+    </button>
+    <p class="text-center text-[10px] text-slate-400 mt-3 m-0">Você pode fechar e voltar ao dashboard a qualquer momento</p>
+  </div>
+</div>
+
 <div id="toastContainer" class="fixed top-4 right-4 z-[100] space-y-2"></div>
 
 <div id="loginScreen" class="min-h-screen flex items-center justify-center p-4 sm:p-6 relative">
@@ -1622,12 +1683,14 @@ async function doRegister(){
       if(!cloudOk) cloudErr=cloudErr||(push && push.error)||"não gravou no painel";
       if(cloudUser){
         try{
+          try{ markJustRegistered(name); }catch(e){}
           await startAppCloud(cloudUser);
           U=login;
           try{document.getElementById("userDisplay").textContent=name||login}catch(e){}
           applyNavMode();
           setAuthStatus("");
           toast(cloudOk?"Conta criada! 7 dias grátis · sincronizada na nuvem":"Conta criada! 7 dias grátis (nuvem: "+cloudErr+")", cloudOk?"success":"info");
+          try{ setTimeout(function(){ maybeShowWelcomeModal(); }, 400); }catch(e){}
           return;
         }catch(e){ console.warn(e); }
       }
@@ -1641,10 +1704,12 @@ async function doRegister(){
   localStorage.setItem("fp_currentUser", login);
   U=login;
   if(typeof ensureClientWorkspace==="function") ensureClientWorkspace(login);
+  try{ markJustRegistered(name); }catch(e){}
   try{ startApp(login); }catch(e){}
   try{ applyNavMode(); }catch(e){}
   setAuthStatus("");
   toast(cloudOk?"Conta criada! 7 dias grátis · nuvem ok":(cloudErr?("Conta criada localmente. Nuvem: "+cloudErr):"Conta criada! 7 dias grátis"), cloudOk?"success":"info");
+  try{ setTimeout(function(){ maybeShowWelcomeModal(); }, 400); }catch(e){}
 }
 
 
@@ -2200,7 +2265,69 @@ function dismissOnboard(){
 function maybeShowOnboard(){
   var b=document.getElementById("onboardBanner");if(!b)return;
   if(!localStorage.getItem("fp_onboard_"+(U||"x")))b.classList.remove("hidden");
+  // Se acabou de criar a conta, mostra tela de boas-vindas
+  try{ maybeShowWelcomeModal(); }catch(e){}
 }
+
+function getWelcomeDisplayName(){
+  try{
+    var key=String(U||localStorage.getItem("fp_currentUser")||"").toLowerCase();
+    var acc=typeof getAccount==="function"?getAccount(key):null;
+    if(acc && acc.name) return String(acc.name).trim().split(/\s+/)[0];
+    var pn=typeof getPersonName==="function"?getPersonName():"";
+    if(pn) return String(pn).trim().split(/\s+/)[0];
+    if(key && key.indexOf("@")<0) return key;
+  }catch(e){}
+  return "tudo bem";
+}
+
+function markJustRegistered(name){
+  try{
+    sessionStorage.setItem("fp_just_registered","1");
+    if(name) sessionStorage.setItem("fp_welcome_name", String(name).trim());
+  }catch(e){}
+}
+
+function maybeShowWelcomeModal(){
+  try{
+    if(typeof isAdmin==="function"&&isAdmin()) return;
+    if(sessionStorage.getItem("fp_just_registered")!=="1") return;
+    var modal=document.getElementById("welcomeModal");
+    if(!modal) return;
+    var name=sessionStorage.getItem("fp_welcome_name")||getWelcomeDisplayName();
+    var el=document.getElementById("welcomeUserName");
+    if(el) el.textContent=name || "bem-vindo";
+    modal.classList.remove("hidden","welcome-out");
+    modal.style.display="flex";
+    try{ document.body.style.overflow="hidden"; }catch(e){}
+  }catch(e){ console.warn("welcome", e); }
+}
+
+function dismissWelcomeModal(){
+  try{
+    sessionStorage.removeItem("fp_just_registered");
+    sessionStorage.removeItem("fp_welcome_name");
+  }catch(e){}
+  var modal=document.getElementById("welcomeModal");
+  if(!modal) return;
+  modal.classList.add("welcome-out");
+  setTimeout(function(){
+    try{
+      modal.classList.add("hidden");
+      modal.style.display="none";
+      modal.classList.remove("welcome-out");
+      document.body.style.overflow="";
+    }catch(e){}
+  }, 380);
+  try{
+    // Marca onboard local também
+    localStorage.setItem("fp_onboard_"+(U||"x"),"1");
+    var b=document.getElementById("onboardBanner");
+    if(b) b.classList.add("hidden");
+  }catch(e){}
+  try{ showSection("dashboard"); renderDashboard(); }catch(e){}
+}
+
 function applyNavMode(){
   // Cliente e admin: menu completo. Só o Painel Admin fica restrito.
   var adv=document.querySelectorAll(".nav-advanced");

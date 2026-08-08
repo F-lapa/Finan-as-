@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="description" content="Controle inteligente de receitas e despesas"/>
 <title>Finanças Smart</title>
-<!-- FS_SYNC_FIX_V4: cloud-first admin list + tombstone fix -->
+<!-- FS_SYNC_FIX_V5: client self-delete removes from admin panel -->
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1363,23 +1363,117 @@ async function pushClientToCloud(info){
 }
 
 async function deleteClientFromCloud(login, clientId, email){
-  var ok=false, lastErr="";
+  var ok=false, lastErr="", deletedLogins=[];
   try{
-    if(clientId && String(clientId).length>8){
-      var d1=await clientsRest("DELETE", "clients?id=eq."+encodeURIComponent(clientId));
-      if(d1.ok) ok=true; else lastErr=d1.error||lastErr;
-    }
+    var targets=[]; // rows to delete from cloud
+    // 1) Busca na nuvem por login / email / id (não confiar só no registry local)
+    var queries=[];
     if(login){
       var lg=String(login).toLowerCase().trim();
-      var d2=await clientsRest("DELETE", "clients?login=eq."+encodeURIComponent(lg));
-      if(d2.ok) ok=true; else lastErr=d2.error||lastErr;
+      queries.push("clients?select=*&login=eq."+encodeURIComponent(lg)+"&limit=20");
+      // às vezes U veio como e-mail
+      if(lg.indexOf("@")>=0){
+        queries.push("clients?select=*&email=eq."+encodeURIComponent(lg)+"&limit=20");
+      }
     }
     if(email && String(email).indexOf("@")>=0){
-      var d3=await clientsRest("DELETE", "clients?email=eq."+encodeURIComponent(String(email).toLowerCase().trim()));
-      if(d3.ok) ok=true; else lastErr=d3.error||lastErr;
+      queries.push("clients?select=*&email=eq."+encodeURIComponent(String(email).toLowerCase().trim())+"&limit=20");
+    }
+    if(clientId && String(clientId).length>=20){ // UUID real do Supabase
+      queries.push("clients?select=*&id=eq."+encodeURIComponent(clientId)+"&limit=5");
+    }
+    var seen={};
+    for(var qi=0; qi<queries.length; qi++){
+      try{
+        var qr=await clientsRest("GET", queries[qi]);
+        if(qr.ok && Array.isArray(qr.data)){
+          qr.data.forEach(function(row){
+            if(!row || !row.id) return;
+            if(seen[row.id]) return;
+            seen[row.id]=true;
+            targets.push(row);
+          });
+        }
+      }catch(e){}
+    }
+
+    // 2) Apaga cada linha encontrada por id (mais confiável)
+    for(var ti=0; ti<targets.length; ti++){
+      var row=targets[ti];
+      try{
+        var d=await clientsRest("DELETE", "clients?id=eq."+encodeURIComponent(row.id));
+        if(d.ok){
+          ok=true;
+          if(row.login) deletedLogins.push(String(row.login).toLowerCase());
+        } else {
+          lastErr=d.error||lastErr;
+        }
+      }catch(e){ lastErr=String(e.message||e); }
+    }
+
+    // 3) Reforço: delete direto por login e email (caso a busca não tenha achado)
+    if(login){
+      var lg2=String(login).toLowerCase().trim();
+      if(lg2.indexOf("@")<0){
+        var dLogin=await clientsRest("DELETE", "clients?login=eq."+encodeURIComponent(lg2));
+        if(dLogin.ok){ ok=true; deletedLogins.push(lg2); }
+        else lastErr=dLogin.error||lastErr;
+      } else {
+        var dEm=await clientsRest("DELETE", "clients?email=eq."+encodeURIComponent(lg2));
+        if(dEm.ok) ok=true; else lastErr=dEm.error||lastErr;
+      }
+    }
+    if(email && String(email).indexOf("@")>=0){
+      var dEmail=await clientsRest("DELETE", "clients?email=eq."+encodeURIComponent(String(email).toLowerCase().trim()));
+      if(dEmail.ok) ok=true; else lastErr=dEmail.error||lastErr;
+    }
+
+    // 4) Confirma se ainda existe; se sim, marca status excluido
+    if(login){
+      var lg3=String(login).toLowerCase().trim();
+      var still=null;
+      try{
+        var qStill = lg3.indexOf("@")>=0
+          ? await clientsRest("GET", "clients?select=id,login,status&email=eq."+encodeURIComponent(lg3)+"&limit=5")
+          : await clientsRest("GET", "clients?select=id,login,status&login=eq."+encodeURIComponent(lg3)+"&limit=5");
+        if(qStill.ok && Array.isArray(qStill.data) && qStill.data.length) still=qStill.data;
+      }catch(e){}
+      if(still && still.length){
+        for(var si=0; si<still.length; si++){
+          try{
+            await clientsRest("PATCH", "clients?id=eq."+encodeURIComponent(still[si].id), {status:"excluido", temp_password:""});
+            ok=true;
+            if(still[si].login) deletedLogins.push(String(still[si].login).toLowerCase());
+          }catch(e){}
+        }
+      }
+    }
+
+    // 5) Verificação final: se não existe mais na nuvem, sucesso
+    if(login){
+      var lg4=String(login).toLowerCase().trim();
+      try{
+        var qFinal = lg4.indexOf("@")>=0
+          ? await clientsRest("GET", "clients?select=id&email=eq."+encodeURIComponent(lg4)+"&limit=1")
+          : await clientsRest("GET", "clients?select=id&login=eq."+encodeURIComponent(lg4)+"&limit=1");
+        if(qFinal.ok && Array.isArray(qFinal.data) && qFinal.data.length===0) ok=true;
+        // se ainda tem e status não é excluido, falhou
+        if(qFinal.ok && Array.isArray(qFinal.data) && qFinal.data.length>0){
+          // tenta ver status
+          var qSt=await clientsRest("GET", "clients?select=id,status&login=eq."+encodeURIComponent(lg4)+"&limit=5");
+          var allEx=true;
+          if(qSt.ok && Array.isArray(qSt.data)){
+            qSt.data.forEach(function(r){
+              var st=String(r.status||"").toLowerCase();
+              if(st!=="excluido" && st!=="deleted" && st!=="excluído") allEx=false;
+            });
+            if(allEx) ok=true;
+          }
+        }
+      }catch(e){}
     }
   }catch(e){ lastErr=String(e.message||e); }
-  return {ok:ok, error:lastErr};
+  return {ok:ok, error:lastErr, deletedLogins:deletedLogins};
 }
 
 /** Cliente logado sincroniza o próprio perfil na nuvem (garante aparecer no admin) */
@@ -3339,19 +3433,40 @@ async function deleteMyAccount(){
     }catch(e){}
     try{ var acc2=typeof getAccount==="function"?getAccount(login):null; if(acc2&&acc2.email) email=email||String(acc2.email); }catch(e){}
 
-    // --- CLOUD: apaga cadastro do painel (clients) e dados do usuário ---
+    // Resolve login/email reais na NUVEM (evita apagar com login errado e sobrar no painel)
+    try{
+      var cloudHits=[];
+      var qs=[];
+      if(login && login.indexOf("@")<0) qs.push("clients?select=*&login=eq."+encodeURIComponent(login)+"&limit=10");
+      if(login && login.indexOf("@")>=0) qs.push("clients?select=*&email=eq."+encodeURIComponent(login)+"&limit=10");
+      if(email && email.indexOf("@")>=0) qs.push("clients?select=*&email=eq."+encodeURIComponent(email)+"&limit=10");
+      for(var qi=0; qi<qs.length; qi++){
+        var qr=await clientsRest("GET", qs[qi]);
+        if(qr.ok && Array.isArray(qr.data)) cloudHits=cloudHits.concat(qr.data);
+      }
+      if(cloudHits.length){
+        var row=cloudHits[0];
+        if(row.login) login=String(row.login).toLowerCase();
+        if(row.email) email=String(row.email).toLowerCase();
+        if(row.id) clientId=String(row.id);
+      }
+    }catch(e){ console.warn("resolve cloud client", e); }
+
+    // --- CLOUD: apaga cadastro do painel (clients) — obrigatório para sumir no admin ---
     var cloudOk=false;
     try{
       var delRes=await deleteClientFromCloud(login, clientId, email);
       cloudOk=!!(delRes && delRes.ok);
+      // Se deleteClientFromCloud retornou logins, usa-os
+      if(delRes && delRes.deletedLogins && delRes.deletedLogins.length){
+        delRes.deletedLogins.forEach(function(lg){
+          try{ if(typeof adminMarkDeleted==="function") adminMarkDeleted(lg, clientId, email); }catch(e){}
+        });
+      }
       if(!cloudOk){
-        // fallback: marca excluído via REST
-        try{
-          if(login){
-            var upR=await clientsRest("PATCH", "clients?login=eq."+encodeURIComponent(login), {status:"excluido", temp_password:""});
-            if(upR.ok) cloudOk=true;
-          }
-        }catch(e){}
+        console.warn("delete cloud falhou", delRes && delRes.error);
+      } else {
+        console.log("delete cloud ok", login, clientId);
       }
     }catch(e){ console.warn("delete clients cloud", e); }
     if(typeof sb!=="undefined" && sb){

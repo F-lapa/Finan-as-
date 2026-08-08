@@ -531,10 +531,16 @@ body.app-locked #paywallModal { display: block !important; }
 <section id="section-reminders" class="hidden space-y-5">
 <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
 <h3 class="font-semibold mb-4">Novo Lembrete</h3>
+<p class="text-xs text-slate-500 mb-3">No vencimento o app avisa. Se a data passar e o valor estiver preenchido, o lançamento é feito automaticamente. Lembretes recorrentes (ex.: aluguel) renovam todo mês até você excluir ou desmarcar a recorrência.</p>
 <div class="flex flex-wrap gap-3 items-end">
-<div class="flex-1 min-w-[140px]"><label class="block text-xs text-slate-500 mb-1">Descrição</label><input type="text" id="reminderDesc" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none"></div>
-<div><label class="block text-xs text-slate-500 mb-1">Data</label><input type="date" id="reminderDate" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"></div>
-<div><label class="block text-xs text-slate-500 mb-1">Valor</label><input type="text" id="reminderAmount" placeholder="0,00" class="w-28 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none" inputmode="decimal"></div>
+<div class="flex-1 min-w-[140px]"><label class="block text-xs text-slate-500 mb-1">Descrição</label><input type="text" id="reminderDesc" placeholder="Ex: Aluguel, Internet, Escola" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none"></div>
+<div><label class="block text-xs text-slate-500 mb-1">Data de vencimento</label><input type="date" id="reminderDate" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"></div>
+<div><label class="block text-xs text-slate-500 mb-1">Valor (R$)</label><input type="text" id="reminderAmount" placeholder="0,00" class="w-28 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none" inputmode="decimal"></div>
+<div><label class="block text-xs text-slate-500 mb-1">Tipo</label><select id="reminderType" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"><option value="despesa">Despesa</option><option value="receita">Receita</option></select></div>
+<label class="flex items-center gap-2 cursor-pointer select-none pb-2 px-1">
+  <input type="checkbox" id="reminderRecurring" class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+  <span class="text-xs font-medium text-slate-600 dark:text-slate-300">Recorrente <span class="text-slate-400">(todo mês)</span></span>
+</label>
 <button onclick="addReminder()" class="btn-primary text-white px-4 py-2 rounded-xl text-sm font-medium">Adicionar</button>
 </div></div>
 <div id="remindersList" class="space-y-2"></div>
@@ -916,6 +922,23 @@ body.app-locked #paywallModal { display: block !important; }
 <div class="flex gap-2">
 <button onclick="closeConfirmModal()" class="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm">Cancelar</button>
 <button onclick="confirmPendingTx()" class="flex-1 btn-primary text-white py-2.5 rounded-xl text-sm font-medium">Confirmar</button>
+</div>
+</div></div>
+
+<div id="reminderDueModal" class="fixed inset-0 z-[60] hidden">
+<div class="absolute inset-0 bg-black/50" onclick="dismissReminderDue()"></div>
+<div class="absolute inset-x-4 top-1/2 -translate-y-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-6">
+<div class="flex items-start gap-3 mb-3">
+  <div class="w-11 h-11 rounded-2xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0"><i class="fas fa-bell text-amber-600"></i></div>
+  <div class="min-w-0">
+    <h3 class="text-lg font-semibold m-0">Lembrete vence hoje</h3>
+    <p class="text-xs text-slate-500 mt-1 m-0">Confira o valor. Se a data passar sem ação, o sistema lança automaticamente.</p>
+  </div>
+</div>
+<div id="reminderDueBody" class="text-sm space-y-2 mb-5 p-4 rounded-xl bg-slate-50 dark:bg-slate-800"></div>
+<div class="flex flex-col sm:flex-row gap-2">
+<button onclick="dismissReminderDue()" class="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm">Lembrar depois</button>
+<button onclick="chargeReminderNow()" class="flex-1 btn-primary text-white py-2.5 rounded-xl text-sm font-medium">Lançar agora</button>
 </div>
 </div></div>
 
@@ -2295,31 +2318,42 @@ function learn(desc,cid){const lower=(desc||"").toLowerCase().trim();const skip=
 
 var _voiceRec=null,_voiceOn=false;
 function normalizeVoiceText(t){
-  t=String(t||"").toLowerCase();
-  // números por extenso comuns
+  t=String(t||"").toLowerCase().normalize("NFC");
+  t=t.replace(/[R$\u20ac]/g," ").replace(/\br\$\b/g," ");
   var map={
-    "zero":"0","um":"1","uma":"1","dois":"2","duas":"2","tres":"3","três":"3","quatro":"4","cinco":"5",
-    "seis":"6","sete":"7","oito":"8","nove":"9","dez":"10","onze":"11","doze":"12","treze":"13",
-    "quatorze":"14","catorze":"14","quinze":"15","dezesseis":"16","dezessete":"17","dezoito":"18","dezenove":"19",
-    "vinte":"20","trinta":"30","quarenta":"40","cinquenta":"50","sessenta":"60","setenta":"70","oitenta":"80","noventa":"90",
-    "cem":"100","cento":"100","duzentos":"200","trezentos":"300","quatrocentos":"400","quinhentos":"500",
-    "seiscentos":"600","setecentos":"700","oitocentos":"800","novecentos":"900"
+    "zero":0,"um":1,"uma":1,"dois":2,"duas":2,"tres":3,"três":3,"quatro":4,"cinco":5,
+    "seis":6,"sete":7,"oito":8,"nove":9,"dez":10,"onze":11,"doze":12,"treze":13,
+    "quatorze":14,"catorze":14,"quinze":15,"dezesseis":16,"dezessete":17,"dezoito":18,"dezenove":19,
+    "vinte":20,"trinta":30,"quarenta":40,"cinquenta":50,"sessenta":60,"setenta":70,"oitenta":80,"noventa":90,
+    "cem":100,"cento":100,"duzentos":200,"trezentos":300,"quatrocentos":400,"quinhentos":500,
+    "seiscentos":600,"setecentos":700,"oitocentos":800,"novecentos":900
   };
-  // "3 mil" / "três mil" / "1 milhão"
-  t=t.replace(/(\d+[.,]?\d*)\s*milh[oõ]es?\b/gi,function(_,n){return String(pm(n)*1000000)});
-  t=t.replace(/(\d+[.,]?\d*)\s*mil\b/gi,function(_,n){return String(pm(n)*1000)});
-  t=t.replace(/\b(um|uma|dois|duas|tres|três|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|quinze|vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa|cem|cento|duzentos|trezentos|quatrocentos|quinhentos)\s+mil\b/gi,function(m){
-    var p=m.toLowerCase().split(/\s+/)[0];
-    var base=map[p]||"1";
-    return String(Number(base)*1000);
+  function w2n(w){ w=String(w||"").toLowerCase().normalize("NFC"); return map[w]!=null?map[w]:null; }
+  // milhão/milhões ANTES de trocar "um"->"1"
+  t=t.replace(/(\d+[.,]?\d*)\s*milh(?:[aã]o|[oõ]es|ao|oes)\b/gi,function(_,n){return String(Math.round(pm(n)*1000000));});
+  t=t.replace(/\b(um|uma|dois|duas|tres|três|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|quinze|vinte|trinta|quarenta|cinquenta|cem|cento|duzentos|trezentos|quinhentos)\s+milh(?:[aã]o|[oõ]es|ao|oes)\b/gi,function(full){
+    var p=full.toLowerCase().normalize("NFC").split(/\s+/)[0];
+    var base=w2n(p); if(base==null) base=1;
+    return String(base*1000000);
+  });
+  t=t.replace(/\bmilh(?:[aã]o|[oõ]es|ao|oes)\b/gi,"1000000");
+  t=t.replace(/(\d+[.,]?\d*)\s*mil\b/gi,function(_,n){return String(Math.round(pm(n)*1000));});
+  t=t.replace(/\b(um|uma|dois|duas|tres|três|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|quinze|vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa|cem|cento|duzentos|trezentos|quatrocentos|quinhentos|seiscentos|setecentos|oitocentos|novecentos)\s+mil\b/gi,function(full){
+    var p=full.toLowerCase().normalize("NFC").split(/\s+/)[0];
+    var base=w2n(p); if(base==null) base=1;
+    return String(base*1000);
+  });
+  t=t.replace(/\b(vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa)\s+e\s+(um|uma|dois|duas|tres|três|quatro|cinco|seis|sete|oito|nove)\b/gi,function(_,a,b){
+    return String((w2n(a)||0)+(w2n(b)||0));
+  });
+  t=t.replace(/\b(cento|duzentos|trezentos|quatrocentos|quinhentos|seiscentos|setecentos|oitocentos|novecentos)\s+e\s+(vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa|dez|onze|doze|treze|quatorze|catorze|quinze|dezesseis|dezessete|dezoito|dezenove|um|uma|dois|duas|tres|três|quatro|cinco|seis|sete|oito|nove)\b/gi,function(_,a,b){
+    return String((w2n(a)||0)+(w2n(b)||0));
+  });
+  Object.keys(map).sort(function(a,b){return b.length-a.length;}).forEach(function(w){
+    t=t.replace(new RegExp("\\b"+w+"\\b","gi"), String(map[w]));
   });
   t=t.replace(/\bmil\b/gi,"1000");
-  // "cinquenta reais" etc — troca palavras isoladas por dígitos quando fazem sentido
-  Object.keys(map).sort(function(a,b){return b.length-a.length}).forEach(function(w){
-    t=t.replace(new RegExp("\\b"+w+"\\b","gi"),map[w]);
-  });
-  // "paguei no mercado cinquenta" já vira números
-  t=t.replace(/\breais?\b/gi," ").replace(/\br\$\b/gi," ");
+  t=t.replace(/\breais?\b/gi," ");
   return t.replace(/\s+/g," ").trim();
 }
 function setVoiceUi(on){
@@ -2448,12 +2482,11 @@ function startVoiceInput(){
           if((res[i].confidence||0)>(res[0].confidence||0)) best=res[i].transcript;
         }
       }catch(e){}
-      best=normalizeVoiceText(best);
-      if(!best){ toast("Não entendi. Ex: paguei 50 no mercado","error"); return; }
+      var rawHeard=best;
+      if(!rawHeard){ toast("Não entendi. Ex: paguei 50 no mercado","error"); return; }
       var input=document.getElementById("smartInput");
-      if(input) input.value=best;
-      toast("Ouvi: "+best,"info");
-      // lança automático
+      if(input) input.value=rawHeard;
+      toast("Ouvi: "+rawHeard,"info");
       setTimeout(function(){ parseSmartInput(); }, 250);
     };
     _voiceRec.start();
@@ -2463,13 +2496,21 @@ function startVoiceInput(){
   }
 }
 function extractAmountFromText(raw){
-  var t=normalizeVoiceText(raw);
-  // prioriza padrões com mil já convertidos
-  var am=t.match(/(\d{1,3}(?:\.\d{3})+,\d{1,2}|\d{1,3}(?:\.\d{3})+|\d+,\d{1,2}|\d+\.\d{1,2}|\d+)/);
-  if(am) return pm(am[1]);
-  return 0;
+  var original=String(raw||"");
+  var t=normalizeVoiceText(original);
+  var candidates=[];
+  function push(n){ n=Number(n); if(isFinite(n)&&n>0) candidates.push(n); }
+  var re=/(\d{1,3}(?:\.\d{3})+,\d{1,2}|\d{1,3}(?:\.\d{3})+|\d+,\d{1,2}|\d+\.\d{1,2}|\d{4,}|\d+)/g;
+  var m;
+  while((m=re.exec(t))){ push(pm(m[1])); }
+  if(/milh(?:[aã]o|[oõ]es|ao|oes)/i.test(original) && (!candidates.length || Math.max.apply(null,candidates.concat([0]))<1000)){
+    push(1000000);
+  }
+  if(!candidates.length) return 0;
+  candidates.sort(function(a,b){return b-a;});
+  if(candidates[0]>=1000) return candidates[0];
+  return candidates[0];
 }
-
 
 function parseSmartInput(){
   const raw=document.getElementById("smartInput").value.trim();
@@ -2493,13 +2534,14 @@ function parseSmartInput(){
     }
   }
   let amount=0;
-  // normaliza "3 mil", "cinquenta" etc.
   var normalized=normalizeVoiceText(raw);
   amount=extractAmountFromText(raw);
   if(amount<=0){
-    const am=normalized.match(/(\d{1,3}(?:\.\d{3})+,\d{1,2}|\d{1,3}(?:\.\d{3})+|\d+,\d{1,2}|\d+\.\d{1,2}|\d+)/);
+    const am=normalized.match(/(\d{1,3}(?:\.\d{3})+,\d{1,2}|\d{1,3}(?:\.\d{3})+|\d+,\d{1,2}|\d+\.\d{1,2}|\d{2,}|\d+)/);
     if(am) amount=pm(am[1]);
   }
+  if(amount>0 && amount<10 && /milh(?:[aã]o|[oõ]es|ao|oes)/i.test(raw)) amount=amount*1000000;
+  else if(amount<=0 && /milh(?:[aã]o|[oõ]es|ao|oes)/i.test(raw)) amount=1000000;
   let date=today();
   if(/ontem/.test(lower)){const d=new Date();d.setDate(d.getDate()-1);date=d.toISOString().slice(0,10)}
   else if(/anteontem/.test(lower)){const d=new Date();d.setDate(d.getDate()-2);date=d.toISOString().slice(0,10)}
@@ -2742,6 +2784,7 @@ async function startAppCloud(user){
   document.getElementById("reminderDate").value=today();
   await loadFromCloud();
   processRecurring();
+  try{processReminders()}catch(e){}
   if(typeof isAdmin==="function" && isAdmin()){
     showSection("admin");
     try{ loadClients().catch(function(){}); }catch(e){}
@@ -2885,7 +2928,7 @@ async function logout(){
 }
 
 
-function startApp(user){U=user;if(user&&user.toLowerCase()===ADMIN_EMAIL.toLowerCase()&&!cloudUser){cloudUser={email:ADMIN_EMAIL,id:"master-local"}}try{if(user&&user.toLowerCase()!==ADMIN_EMAIL.toLowerCase())ensureClientWorkspace(String(user).toLowerCase());}catch(e){}document.getElementById("loginScreen").classList.add("hidden");document.getElementById("appScreen").classList.remove("hidden");document.getElementById("userDisplay").textContent=user;T=gd("transactions");C=gd("categories",null);if(!C||!C.length){C=DC.slice();sd("categories",C)}L=gd("limits",{});R=gd("reminders");RC=gd("recurring");RU=gd("rules");LN=gd("learned",{});G=gd("goals");VR=gd("valueRules");applyTheme();const sc=localStorage.getItem("fp_primaryColor");if(sc)setPrimaryColor(sc);document.getElementById("reminderDate").value=today();processRecurring();if(typeof isAdmin==="function"&&isAdmin()){showSection("admin");}else{showSection("dashboard");}updateAdminNav();applyNavMode();maybeShowOnboard();try{maybeAskPermissions()}catch(e){}try{startFsTickerLoop()}catch(e){}try{updatePaymentNav()}catch(e){}try{startVitalicioWatch()}catch(e){}try{Promise.resolve(refreshPaidStatusFromCloud()).finally(function(){try{enforceAccessGate()}catch(e){}})}catch(e){try{enforceAccessGate()}catch(e2){}}if(isAdmin()){
+function startApp(user){U=user;if(user&&user.toLowerCase()===ADMIN_EMAIL.toLowerCase()&&!cloudUser){cloudUser={email:ADMIN_EMAIL,id:"master-local"}}try{if(user&&user.toLowerCase()!==ADMIN_EMAIL.toLowerCase())ensureClientWorkspace(String(user).toLowerCase());}catch(e){}document.getElementById("loginScreen").classList.add("hidden");document.getElementById("appScreen").classList.remove("hidden");document.getElementById("userDisplay").textContent=user;T=gd("transactions");C=gd("categories",null);if(!C||!C.length){C=DC.slice();sd("categories",C)}L=gd("limits",{});R=gd("reminders");RC=gd("recurring");RU=gd("rules");LN=gd("learned",{});G=gd("goals");VR=gd("valueRules");applyTheme();const sc=localStorage.getItem("fp_primaryColor");if(sc)setPrimaryColor(sc);document.getElementById("reminderDate").value=today();processRecurring();try{processReminders()}catch(e){}if(typeof isAdmin==="function"&&isAdmin()){showSection("admin");}else{showSection("dashboard");}updateAdminNav();applyNavMode();maybeShowOnboard();try{maybeAskPermissions()}catch(e){}try{startFsTickerLoop()}catch(e){}try{updatePaymentNav()}catch(e){}try{startVitalicioWatch()}catch(e){}try{Promise.resolve(refreshPaidStatusFromCloud()).finally(function(){try{enforceAccessGate()}catch(e){}})}catch(e){try{enforceAccessGate()}catch(e2){}}if(isAdmin()){
   try{ loadClients().catch(function(){}); }catch(e){}
   try{ startAdminClientsWatch(); }catch(e){}
   try{ startAdminClientsRealtime(); }catch(e){}
@@ -3205,9 +3248,223 @@ function renderCategories(){document.getElementById("categoriesList").innerHTML=
 function renderLimits(){document.getElementById("limitCategory").innerHTML=C.filter(c=>c.type==="despesa").map(c=>"<option value=\""+c.id+"\">"+c.name+"</option>").join("");const now=new Date(),tm=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");const entries=Object.keys(L),cont=document.getElementById("limitsList");if(!entries.length){cont.innerHTML="<div class=\"text-center text-slate-400 py-8 text-sm\">Nenhum limite</div>";return}cont.innerHTML=entries.map(cid=>{const cat=C.find(c=>c.id===cid);if(!cat)return"";const spent=T.filter(t=>t.type==="despesa"&&t.categoryId===cid&&mk(t.date)===tm).reduce((s,t)=>s+t.amount,0);const lim=L[cid],pct=Math.min(100,(spent/lim)*100),over=spent>lim;return "<div class=\"bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4\"><div class=\"flex justify-between mb-2\"><div class=\"flex items-center gap-2\"><span class=\"w-2.5 h-2.5 rounded-full\" style=\"background:"+cat.color+"\"></span><span class=\"font-medium text-sm\">"+esc(cat.name)+"</span></div><div class=\"flex items-center gap-3\"><span class=\"text-sm "+(over?"text-red-500 font-semibold":"text-slate-500")+"\">"+fm(spent)+" / "+fm(lim)+"</span><button onclick=\"removeLimit('"+cid+"')\" class=\"text-slate-400 hover:text-red-500 text-xs\"><i class=\"fas fa-times\"></i></button></div></div><div class=\"h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden\"><div class=\"h-full rounded-full "+(over?"bg-red-500":"bg-emerald-500")+"\" style=\"width:"+pct+"%\"></div></div>"+(over?"<p class=\"text-xs text-red-500 mt-1.5\">Ultrapassado em "+fm(spent-lim)+"</p>":"")+"</div>"}).join("")}
 function saveLimit(){const cid=document.getElementById("limitCategory").value,v=pm(document.getElementById("limitValue").value);if(v<=0){toast("Valor inválido","error");return}L[cid]=v;sd("limits",L);document.getElementById("limitValue").value="";toast("Limite salvo");renderLimits()}
 function removeLimit(cid){delete L[cid];sd("limits",L);toast("Removido");renderLimits()}
-function addReminder(){const desc=document.getElementById("reminderDesc").value.trim(),date=document.getElementById("reminderDate").value,amount=pm(document.getElementById("reminderAmount").value);if(!desc||!date){toast("Preencha descrição e data","error");return}R.push({id:uid(),description:desc,date,amount});sd("reminders",R);document.getElementById("reminderDesc").value="";document.getElementById("reminderAmount").value="";toast("Lembrete adicionado");renderReminders()}
-function deleteReminder(id){R=R.filter(r=>r.id!==id);sd("reminders",R);toast("Removido");renderReminders()}
-function renderReminders(){const sorted=R.slice().sort((a,b)=>a.date.localeCompare(b.date)),list=document.getElementById("remindersList");if(!sorted.length){list.innerHTML="<div class=\"text-center text-slate-400 py-8 text-sm\">Nenhum lembrete</div>";return}const td=today();list.innerHTML=sorted.map(r=>{const overdue=r.date<td,isToday=r.date===td;return "<div class=\"bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 flex items-center gap-3 "+(overdue?"border-red-300":"")+"\"><div class=\"w-10 h-10 rounded-xl flex items-center justify-center "+(overdue?"bg-red-100 dark:bg-red-900/30":isToday?"bg-amber-100 dark:bg-amber-900/30":"bg-slate-100 dark:bg-slate-800")+"\"><i class=\"fas fa-bell text-sm "+(overdue?"text-red-500":isToday?"text-amber-500":"text-slate-400")+"\"></i></div><div class=\"flex-1 min-w-0\"><p class=\"font-medium text-sm\">"+esc(r.description)+"</p><p class=\"text-xs text-slate-400\">"+fd(r.date)+(r.amount?" · "+fm(r.amount):"")+(overdue?" · <span class=\"text-red-500\">Atrasado</span>":isToday?" · <span class=\"text-amber-500\">Hoje</span>":"")+"</p></div><button onclick=\"deleteReminder('"+r.id+"')\" class=\"p-1.5 text-slate-400 hover:text-red-500\"><i class=\"fas fa-trash text-xs\"></i></button></div>"}).join("")}
+function addMonthsISO(iso, months){
+  var p=String(iso||"").split("-");
+  if(p.length<3) return iso;
+  var y=Number(p[0]), m=Number(p[1])-1, d=Number(p[2]);
+  var dt=new Date(y, m + (months||1), d);
+  var yy=dt.getFullYear();
+  var mm=String(dt.getMonth()+1).padStart(2,"0");
+  var dd=String(dt.getDate()).padStart(2,"0");
+  return yy+"-"+mm+"-"+dd;
+}
+function reminderCategoryId(r){
+  if(r && r.categoryId) return r.categoryId;
+  var type=(r && r.type==="receita")?"receita":"despesa";
+  var cid=detect((r&&r.description)||"", type);
+  if(cid) return cid;
+  return type==="receita"?"cat_outros_r":"cat_moradia";
+}
+function addReminder(){
+  var desc=document.getElementById("reminderDesc").value.trim();
+  var date=document.getElementById("reminderDate").value;
+  var amount=pm(document.getElementById("reminderAmount").value);
+  var typeEl=document.getElementById("reminderType");
+  var type=typeEl?typeEl.value:"despesa";
+  var recEl=document.getElementById("reminderRecurring");
+  var recurring=!!(recEl&&recEl.checked);
+  if(!desc||!date){ toast("Preencha descrição e data","error"); return; }
+  R.push({
+    id:uid(),
+    description:desc,
+    date:date,
+    amount:amount||0,
+    type:type==="receita"?"receita":"despesa",
+    recurring:recurring,
+    categoryId:detect(desc, type==="receita"?"receita":"despesa")||null,
+    lastCharged:null,
+    notifiedOn:null
+  });
+  sd("reminders",R);
+  document.getElementById("reminderDesc").value="";
+  document.getElementById("reminderAmount").value="";
+  if(recEl) recEl.checked=false;
+  toast(recurring?"Lembrete recorrente adicionado":"Lembrete adicionado");
+  renderReminders();
+  try{ processReminders(); }catch(e){}
+}
+function deleteReminder(id){
+  R=R.filter(function(r){ return r.id!==id; });
+  sd("reminders",R);
+  toast("Removido");
+  renderReminders();
+}
+function toggleReminderRecurring(id){
+  var r=R.find(function(x){ return x.id===id; });
+  if(!r) return;
+  r.recurring=!r.recurring;
+  sd("reminders",R);
+  toast(r.recurring?"Recorrência ativada":"Recorrência desativada","info");
+  renderReminders();
+}
+function updateReminderAmount(id, val){
+  var r=R.find(function(x){ return x.id===id; });
+  if(!r) return;
+  var n=pm(val);
+  if(n<0){ toast("Valor inválido","error"); return; }
+  r.amount=n;
+  sd("reminders",R);
+  toast("Valor atualizado");
+  renderReminders();
+}
+function chargeReminderTx(r, chargeDate){
+  if(!r || !(r.amount>0)) return false;
+  var d=chargeDate||r.date||today();
+  if(T.some(function(t){ return t.reminderId===r.id && mk(t.date)===mk(d); })) return false;
+  var type=r.type==="receita"?"receita":"despesa";
+  var cid=reminderCategoryId(r);
+  var tx={
+    id:uid(),
+    date:d,
+    description:(r.description||"Lembrete")+(r.recurring?" (recorrente)":" (lembrete)"),
+    amount:Number(r.amount)||0,
+    type:type,
+    categoryId:cid,
+    reminderId:r.id
+  };
+  T.push(tx);
+  r.lastCharged=d;
+  if(r.recurring){
+    r.date=addMonthsISO(r.date||d, 1);
+    r.notifiedOn=null;
+  } else {
+    R=R.filter(function(x){ return x.id!==r.id; });
+  }
+  sd("transactions",T);
+  sd("reminders",R);
+  return true;
+}
+var _reminderDueQueue=[];
+var _reminderDueCurrent=null;
+function showReminderDueModal(r){
+  _reminderDueCurrent=r;
+  var body=document.getElementById("reminderDueBody");
+  var modal=document.getElementById("reminderDueModal");
+  if(!body||!modal) return;
+  body.innerHTML=
+    '<div class="flex justify-between gap-2"><span class="text-slate-500">Descrição</span><strong class="text-right">'+esc(r.description||"")+'</strong></div>'+
+    '<div class="flex justify-between gap-2"><span class="text-slate-500">Vencimento</span><strong>'+fd(r.date)+'</strong></div>'+
+    '<div class="flex justify-between gap-2"><span class="text-slate-500">Valor</span><strong>'+(r.amount?fm(r.amount):"sem valor")+'</strong></div>'+
+    '<div class="flex justify-between gap-2"><span class="text-slate-500">Tipo</span><strong>'+(r.type==="receita"?"Receita":"Despesa")+(r.recurring?" · recorrente":"")+'</strong></div>'+
+    '<p class="text-[11px] text-slate-400 pt-1">Se passar do dia com valor definido, o app lança sozinho.</p>';
+  modal.classList.remove("hidden");
+  try{
+    if(typeof showLocalNotification==="function") showLocalNotification("Lembrete: "+(r.description||""), (r.amount?fm(r.amount)+" · ":"")+"vence hoje");
+  }catch(e){}
+}
+function dismissReminderDue(){
+  var modal=document.getElementById("reminderDueModal");
+  if(modal) modal.classList.add("hidden");
+  if(_reminderDueCurrent){
+    _reminderDueCurrent.notifiedOn=today();
+    sd("reminders",R);
+  }
+  _reminderDueCurrent=null;
+  if(_reminderDueQueue.length){
+    setTimeout(function(){ showReminderDueModal(_reminderDueQueue.shift()); }, 300);
+  }
+}
+function chargeReminderNow(){
+  var r=_reminderDueCurrent;
+  if(!r){ dismissReminderDue(); return; }
+  if(!(r.amount>0)){
+    toast("Defina um valor no lembrete para lançar","error");
+    return;
+  }
+  var ok=chargeReminderTx(r, today());
+  if(ok){
+    toast("Lançamento criado a partir do lembrete");
+    try{ renderDashboard(); }catch(e){}
+    try{ renderTransactions(); }catch(e){}
+  } else {
+    toast("Já existe lançamento deste lembrete no mês","info");
+  }
+  var modal=document.getElementById("reminderDueModal");
+  if(modal) modal.classList.add("hidden");
+  _reminderDueCurrent=null;
+  renderReminders();
+  if(_reminderDueQueue.length){
+    setTimeout(function(){ showReminderDueModal(_reminderDueQueue.shift()); }, 300);
+  }
+}
+function processReminders(){
+  if(!R || !R.length) return;
+  var td=today();
+  var auto=0;
+  var dueToday=[];
+  R.slice().forEach(function(r){
+    if(!r || !r.date) return;
+    if(r.date < td){
+      if(r.amount>0){
+        if(chargeReminderTx(r, r.date)) auto++;
+        else if(r.recurring){
+          while(r.date < td){ r.date=addMonthsISO(r.date,1); }
+          sd("reminders",R);
+        }
+      } else if(r.recurring){
+        while(r.date < td){ r.date=addMonthsISO(r.date,1); }
+        sd("reminders",R);
+      }
+      return;
+    }
+    if(r.date===td && r.notifiedOn!==td){
+      dueToday.push(r);
+    }
+  });
+  if(auto){
+    toast(auto+" lembrete(s) vencido(s) lançado(s) automaticamente","info");
+    try{ renderDashboard(); }catch(e){}
+  }
+  if(dueToday.length){
+    _reminderDueQueue=dueToday.slice(1);
+    showReminderDueModal(dueToday[0]);
+  }
+  renderReminders();
+}
+function renderReminders(){
+  var list=document.getElementById("remindersList");
+  if(!list) return;
+  var sorted=R.slice().sort(function(a,b){ return String(a.date).localeCompare(String(b.date)); });
+  if(!sorted.length){
+    list.innerHTML='<div class="text-center text-slate-400 py-8 text-sm">Nenhum lembrete</div>';
+    return;
+  }
+  var td=today();
+  list.innerHTML=sorted.map(function(r){
+    var overdue=r.date<td, isToday=r.date===td;
+    var border=overdue?"border-red-300":(isToday?"border-amber-300":"border-slate-200 dark:border-slate-800");
+    var iconBg=overdue?"bg-red-100 dark:bg-red-900/30":(isToday?"bg-amber-100 dark:bg-amber-900/30":"bg-slate-100 dark:bg-slate-800");
+    var iconCl=overdue?"text-red-500":(isToday?"text-amber-500":"text-slate-400");
+    var status=overdue?' · <span class="text-red-500">Atrasado</span>':(isToday?' · <span class="text-amber-500">Hoje</span>':"");
+    var recBadge=r.recurring?'<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300">Recorrente</span>':'<span class="text-[10px] text-slate-400">Avulso</span>';
+    return '<div class="bg-white dark:bg-slate-900 rounded-xl border '+border+' p-4 space-y-3">'+
+      '<div class="flex items-center gap-3">'+
+        '<div class="w-10 h-10 rounded-xl flex items-center justify-center '+iconBg+' shrink-0"><i class="fas fa-bell text-sm '+iconCl+'"></i></div>'+
+        '<div class="flex-1 min-w-0">'+
+          '<div class="flex flex-wrap items-center gap-2"><p class="font-medium text-sm m-0">'+esc(r.description)+'</p>'+recBadge+'</div>'+
+          '<p class="text-xs text-slate-400 m-0 mt-0.5">'+fd(r.date)+(r.amount?" · "+fm(r.amount):" · sem valor")+status+(r.type==="receita"?" · receita":" · despesa")+'</p>'+
+        '</div>'+
+        '<button type="button" onclick="deleteReminder(\''+r.id+'\')" class="p-1.5 text-slate-400 hover:text-red-500" title="Excluir"><i class="fas fa-trash text-xs"></i></button>'+
+      '</div>'+
+      '<div class="flex flex-wrap items-end gap-2 pl-1">'+
+        '<div class="min-w-[110px]"><label class="block text-[10px] text-slate-400 mb-0.5">Valor</label>'+
+          '<input type="text" inputmode="decimal" value="'+(r.amount?String(r.amount).replace(".",","):"")+'" class="w-28 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm" onchange="updateReminderAmount(\''+r.id+'\', this.value)" onkeydown="if(event.key===\'Enter\'){updateReminderAmount(\''+r.id+'\', this.value);this.blur()}"></div>'+
+        '<button type="button" onclick="toggleReminderRecurring(\''+r.id+'\')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 font-medium hover:border-indigo-400">'+(r.recurring?"Desativar recorrência":"Tornar recorrente")+'</button>'+
+        (r.amount>0?('<button type="button" onclick="(function(){var rr=R.find(function(x){return x.id===\''+r.id+'\'}); if(rr&&chargeReminderTx(rr,today())){toast(\'Lançado\');renderDashboard();renderReminders();} else toast(\'Já lançado neste mês ou sem valor\',\'info\');})()" class="text-xs px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 font-semibold">Lançar agora</button>'):'')+
+      '</div></div>';
+  }).join("");
+}
+
 function calculateCompound(){
   const principal=pm(document.getElementById("ciPrincipal").value),
     monthly=pm(document.getElementById("ciMonthly").value),

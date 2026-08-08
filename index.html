@@ -3250,8 +3250,8 @@ async function deleteMyAccount(){
     }
     if(!okPass){ toast("Senha incorreta","error"); return; }
 
-    if(!confirm("ELIMINAR CONTA DE VEZ?\\n\\nIsso apaga o login, remove você do painel do administrador e encerra o acesso.\\nVocê voltará para a tela de entrada.")) return;
-    if(!confirm("Confirma excluir permanentemente a conta \\""+login+"\\"?")) return;
+    if(!confirm("ELIMINAR CONTA DE VEZ?\n\nIsso apaga o login, remove você do painel do administrador e encerra o acesso.\nVocê voltará para a tela de entrada.")) return;
+    if(!confirm('Confirma excluir permanentemente a conta "'+login+'"?')) return;
 
     toast("Eliminando conta…","info");
 

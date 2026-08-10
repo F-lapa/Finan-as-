@@ -1328,28 +1328,32 @@ async function findDuplicateInCloud(login, email){
   if(typeof clientsRest!=="function") return result;
   var lg=String(login||"").toLowerCase().trim();
   var em=String(email||"").toLowerCase().trim();
+  function isAliveRow(row){
+    if(!row) return false;
+    var st=String(row.status||"").toLowerCase();
+    if(st==="excluido"||st==="deleted"||st==="excluído"||st==="revogado") return false;
+    return true;
+  }
   try{
     if(lg){
-      var r1=await clientsRest("GET","clients?select=id,login,email,name&login=eq."+encodeURIComponent(lg)+"&limit=5");
-      if(r1 && r1.ok && Array.isArray(r1.data) && r1.data.length){
-        result.loginTaken=true;
-        result.row=r1.data[0];
+      var r1=await clientsRest("GET","clients?select=id,login,email,name,status&login=eq."+encodeURIComponent(lg)+"&limit=5");
+      if(r1 && r1.ok && Array.isArray(r1.data)){
+        var live=r1.data.filter(isAliveRow);
+        if(live.length){ result.loginTaken=true; result.row=live[0]; }
       }
     }
   }catch(e){}
   try{
     if(em && em.indexOf("@")>=0){
-      var r2=await clientsRest("GET","clients?select=id,login,email,name&email=eq."+encodeURIComponent(em)+"&limit=5");
-      if(r2 && r2.ok && Array.isArray(r2.data) && r2.data.length){
-        result.emailTaken=true;
-        if(!result.row) result.row=r2.data[0];
+      var r2=await clientsRest("GET","clients?select=id,login,email,name,status&email=eq."+encodeURIComponent(em)+"&limit=5");
+      if(r2 && r2.ok && Array.isArray(r2.data)){
+        var live2=r2.data.filter(isAliveRow);
+        if(live2.length){ result.emailTaken=true; if(!result.row) result.row=live2[0]; }
       }
-      // também login cadastrado como o próprio e-mail
-      var r3=await clientsRest("GET","clients?select=id,login,email,name&login=eq."+encodeURIComponent(em)+"&limit=5");
-      if(r3 && r3.ok && Array.isArray(r3.data) && r3.data.length){
-        result.emailTaken=true;
-        result.loginTaken=result.loginTaken||true;
-        if(!result.row) result.row=r3.data[0];
+      var r3=await clientsRest("GET","clients?select=id,login,email,name,status&login=eq."+encodeURIComponent(em)+"&limit=5");
+      if(r3 && r3.ok && Array.isArray(r3.data)){
+        var live3=r3.data.filter(isAliveRow);
+        if(live3.length){ result.emailTaken=true; result.loginTaken=result.loginTaken||true; if(!result.row) result.row=live3[0]; }
       }
     }
   }catch(e){}
@@ -1785,13 +1789,20 @@ async function doRegister(){
   if(pass.length<6){ showErr("A senha precisa ter no mínimo 6 caracteres"); return; }
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ showErr("E-mail inválido"); return; }
   if(login===(typeof ADMIN_EMAIL!=="undefined"?ADMIN_EMAIL.toLowerCase():"")){ showErr("Este login é reservado"); return; }
-  // Bloqueia login/e-mail duplicados (local + nuvem)
+  // Bloqueia login/e-mail duplicados (local + nuvem) — contas excluídas podem ser reutilizadas
   try{
     setAuthStatus("Verificando se login e e-mail estão livres…");
+    // limpa tombstone local se existir (permite recadastro após exclusão no painel)
+    try{
+      var ds=typeof adminGetDeletedSet==="function"?adminGetDeletedSet():JSON.parse(localStorage.getItem("fp_deleted_clients")||"{}");
+      var changed=false;
+      if(ds[login]){ delete ds[login]; changed=true; }
+      if(ds[email]){ delete ds[email]; changed=true; }
+      if(changed) localStorage.setItem("fp_deleted_clients", JSON.stringify(ds));
+    }catch(e){}
     var uniq=await assertUniqueLoginEmail(login, email, {});
     if(!uniq.ok){ showErr(uniq.message||"Login ou e-mail já cadastrado"); setAuthStatus(""); return; }
   }catch(e){
-    // fallback local estrito
     if(isLoginTakenLocal(login)){ showErr("Este login já está cadastrado. Escolha outro login."); return; }
     if(isEmailTakenLocal(email)){ showErr("Este e-mail já está cadastrado. Use outro e-mail ou faça login."); return; }
   }
@@ -3058,6 +3069,25 @@ async function doLogin(){
     return;
   }
   setAuthStatus("Entrando…");
+  // Conta excluída pelo admin? bloqueia antes de qualquer login
+  try{
+    var emailGuess=loginKey.indexOf("@")>=0?loginKey:"";
+    try{
+      var found0=typeof findLocalAccount==="function"?findLocalAccount(loginKey):null;
+      if(found0&&found0.acc&&found0.acc.email) emailGuess=String(found0.acc.email).toLowerCase();
+      if(found0&&found0.login) loginKey=String(found0.login).toLowerCase();
+    }catch(e){}
+    if(isLoginMarkedDeletedLocal(loginKey, emailGuess)){
+      err.textContent="Esta conta foi excluída pelo administrador. Faça um novo cadastro.";
+      err.classList.remove("hidden"); setAuthStatus(""); return;
+    }
+    var alive0=await checkAccountAliveInCloud(loginKey, emailGuess);
+    if(alive0 && alive0.ok===false && !alive0.unknown){
+      try{ purgeLocalAccountCompletely(loginKey, emailGuess); }catch(e){}
+      err.textContent=alive0.message||"Esta conta foi excluída pelo administrador. Faça um novo cadastro.";
+      err.classList.remove("hidden"); setAuthStatus(""); return;
+    }
+  }catch(e){ console.warn("login deleted check", e); }
   // 1) Contas criadas no app (login OU e-mail)
   var found=typeof findLocalAccount==="function"?findLocalAccount(loginKey):null;
   if(found&&found.acc){
@@ -3212,7 +3242,7 @@ async function startAppCloud(user){
   updateAdminNav();applyNavMode();maybeShowOnboard();try{maybeShowApkWelcome()}catch(e){}try{maybeAskPermissions()}catch(e){}toast("Conectado à nuvem","info");
   try{startFsTickerLoop()}catch(e){}
   try{updatePaymentNav()}catch(e){}
-  try{startVitalicioWatch()}catch(e){}
+  try{startVitalicioWatch()}catch(e){}try{startAccountDeletionWatch()}catch(e){}try{startAccountDeletionWatch()}catch(e){}
   try{Promise.resolve(refreshPaidStatusFromCloud()).finally(function(){try{enforceAccessGate()}catch(e){}})}catch(e){try{enforceAccessGate()}catch(e2){}}
 }
 async function loadFromCloud(){
@@ -4045,6 +4075,202 @@ function wipeLocalWorkspaceForLogin(login){
     keys.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
   }catch(e){}
 }
+
+/** Remove conta local por completo (users, registry, dados, paid, tombstone). */
+function purgeLocalAccountCompletely(login, email){
+  login=String(login||"").toLowerCase().trim();
+  email=String(email||"").toLowerCase().trim();
+  try{ if(login) wipeLocalWorkspaceForLogin(login); }catch(e){}
+  try{
+    var users=JSON.parse(localStorage.getItem("fp_users")||"{}");
+    Object.keys(users).forEach(function(k){
+      var a=users[k]||{};
+      var em=String(a.email||"").toLowerCase();
+      if((login && k.toLowerCase()===login) || (email && em===email) || (email && k.toLowerCase()===email)){
+        delete users[k];
+      }
+    });
+    localStorage.setItem("fp_users", JSON.stringify(users));
+  }catch(e){}
+  try{
+    var reg=typeof getClientsRegistrySafe==="function"?getClientsRegistrySafe():JSON.parse(localStorage.getItem("fp_clients_registry")||"[]");
+    reg=(reg||[]).filter(function(c){
+      var lg=String(c.login||"").toLowerCase();
+      var em=String(c.email||"").toLowerCase();
+      if(login && lg===login) return false;
+      if(email && em===email) return false;
+      if(email && lg===email) return false;
+      return true;
+    });
+    if(typeof saveClientsRegistrySafe==="function") saveClientsRegistrySafe(reg);
+    else if(typeof saveClientsRegistry==="function") saveClientsRegistry(reg);
+    else localStorage.setItem("fp_clients_registry", JSON.stringify(reg));
+  }catch(e){}
+  try{
+    if(login){
+      var paid=JSON.parse(localStorage.getItem("fp_paid_logins")||"[]");
+      paid=(paid||[]).filter(function(x){ return String(x).toLowerCase()!==login; });
+      localStorage.setItem("fp_paid_logins", JSON.stringify(paid));
+    }
+  }catch(e){}
+  try{
+    if(typeof adminMarkDeleted==="function") adminMarkDeleted(login, "", email);
+  }catch(e){}
+  try{
+    var cur=String(localStorage.getItem("fp_currentUser")||"").toLowerCase();
+    if(cur && (cur===login || (email && cur===email))) localStorage.removeItem("fp_currentUser");
+  }catch(e){}
+}
+
+function isLoginMarkedDeletedLocal(login, email){
+  login=String(login||"").toLowerCase().trim();
+  email=String(email||"").toLowerCase().trim();
+  try{
+    var d=typeof adminGetDeletedSet==="function"?adminGetDeletedSet():JSON.parse(localStorage.getItem("fp_deleted_clients")||"{}");
+    if(login && d[login]) return true;
+    if(email && d[email]) return true;
+    for(var k in d){
+      if(!d[k]) continue;
+      if(email && String(d[k].email||"").toLowerCase()===email) return true;
+      if(login && String(d[k].email||"").toLowerCase()===login) return true;
+    }
+  }catch(e){}
+  return false;
+}
+
+/** Consulta nuvem: conta existe e NÃO está excluída? */
+async function checkAccountAliveInCloud(login, email){
+  login=String(login||"").toLowerCase().trim();
+  email=String(email||"").toLowerCase().trim();
+  if(typeof clientsRest!=="function") return { ok:true, unknown:true }; // sem API, não bloqueia
+  var rows=[];
+  try{
+    if(login && login.indexOf("@")<0){
+      var r=await clientsRest("GET","clients?select=id,login,email,status&login=eq."+encodeURIComponent(login)+"&limit=10");
+      if(r && r.ok && Array.isArray(r.data)) rows=rows.concat(r.data);
+    }
+  }catch(e){}
+  try{
+    if(email && email.indexOf("@")>=0){
+      var r2=await clientsRest("GET","clients?select=id,login,email,status&email=eq."+encodeURIComponent(email)+"&limit=10");
+      if(r2 && r2.ok && Array.isArray(r2.data)) rows=rows.concat(r2.data);
+    }
+  }catch(e){}
+  try{
+    if(login && login.indexOf("@")>=0){
+      var r3=await clientsRest("GET","clients?select=id,login,email,status&email=eq."+encodeURIComponent(login)+"&limit=10");
+      if(r3 && r3.ok && Array.isArray(r3.data)) rows=rows.concat(r3.data);
+      var r4=await clientsRest("GET","clients?select=id,login,email,status&login=eq."+encodeURIComponent(login)+"&limit=10");
+      if(r4 && r4.ok && Array.isArray(r4.data)) rows=rows.concat(r4.data);
+    }
+  }catch(e){}
+
+  // dedupe by id
+  var seen={}, list=[];
+  rows.forEach(function(row){
+    if(!row) return;
+    var id=row.id||(row.login+"|"+row.email);
+    if(seen[id]) return;
+    seen[id]=true;
+    list.push(row);
+  });
+
+  if(!list.length){
+    // Sem linha na nuvem: se há sessão Auth/cloudUser, trata como excluída; senão pode ser conta só local
+    var hadCloud=false;
+    try{ if(typeof cloudUser!=="undefined" && cloudUser && cloudUser.id && cloudUser.id!=="master-local") hadCloud=true; }catch(e){}
+    try{
+      var reg=typeof getClientsRegistrySafe==="function"?getClientsRegistrySafe():[];
+      for(var i=0;i<(reg||[]).length;i++){
+        var c=reg[i];
+        if(!c) continue;
+        if(login && String(c.login||"").toLowerCase()===login && c.cloud) hadCloud=true;
+        if(email && String(c.email||"").toLowerCase()===email && c.cloud) hadCloud=true;
+      }
+    }catch(e){}
+    if(hadCloud) return { ok:false, reason:"missing", message:"Esta conta foi excluída pelo administrador." };
+    return { ok:true, unknown:true, missing:true };
+  }
+  var alive=list.filter(function(row){
+    var st=String(row.status||"").toLowerCase();
+    return st!=="excluido" && st!=="deleted" && st!=="excluído" && st!=="revogado";
+  });
+  if(!alive.length){
+    return { ok:false, reason:"excluded", message:"Esta conta foi excluída pelo administrador." };
+  }
+  return { ok:true, row:alive[0] };
+}
+
+function forceLogoutDeletedAccount(msg){
+  try{ stopAiSpeech(); }catch(e){}
+  try{ if(window._accountWatchTimer){ clearInterval(window._accountWatchTimer); window._accountWatchTimer=null; } }catch(e){}
+  try{ if(sb) sb.auth.signOut(); }catch(e){}
+  var login=""; var email="";
+  try{ login=String(U||localStorage.getItem("fp_currentUser")||"").toLowerCase(); }catch(e){}
+  try{
+    var acc=typeof getAccount==="function"?getAccount(login):null;
+    if(acc&&acc.email) email=String(acc.email).toLowerCase();
+  }catch(e){}
+  try{ purgeLocalAccountCompletely(login, email); }catch(e){}
+  try{ U=null; cloudUser=null; }catch(e){}
+  try{ localStorage.removeItem("fp_currentUser"); }catch(e){}
+  T=[]; C=(typeof DC!=="undefined"?DC.slice():[]); L={}; R=[]; RC=[]; RU=[]; LN={}; G=[]; VR=[];
+  try{
+    var app=document.getElementById("appScreen");
+    var loginScr=document.getElementById("loginScreen");
+    if(app){ app.classList.add("hidden"); app.style.display="none"; }
+    if(loginScr){ loginScr.classList.remove("hidden"); loginScr.style.display=""; }
+    document.body.classList.remove("app-locked","splash-hide");
+    if(typeof setAuthTab==="function") setAuthTab("login");
+    var lu=document.getElementById("loginUser"); if(lu) lu.value="";
+    var lp=document.getElementById("loginPass"); if(lp) lp.value="";
+    var le=document.getElementById("loginError");
+    if(le){ le.textContent=msg||"Sua conta foi excluída pelo administrador."; le.classList.remove("hidden"); }
+  }catch(e){}
+  try{ toast(msg||"Conta excluída. Faça um novo cadastro para voltar.","error"); }catch(e){}
+}
+
+async function verifySessionNotDeleted(){
+  try{
+    if(typeof isAdmin==="function" && isAdmin()) return true;
+    var login=String(U||localStorage.getItem("fp_currentUser")||"").toLowerCase().trim();
+    if(!login) return true;
+    if(login===(typeof ADMIN_EMAIL!=="undefined"?String(ADMIN_EMAIL).toLowerCase():"")) return true;
+    var email="";
+    try{
+      var acc=typeof getAccount==="function"?getAccount(login):null;
+      if(acc&&acc.email) email=String(acc.email).toLowerCase();
+    }catch(e){}
+    if(isLoginMarkedDeletedLocal(login, email)){
+      forceLogoutDeletedAccount("Sua conta foi excluída pelo administrador.");
+      return false;
+    }
+    var alive=await checkAccountAliveInCloud(login, email);
+    // Se a API respondeu e a conta não está viva → kick
+    if(alive && alive.ok===false && !alive.unknown){
+      try{ purgeLocalAccountCompletely(login, email); }catch(e){}
+      forceLogoutDeletedAccount(alive.message||"Sua conta foi excluída pelo administrador.");
+      return false;
+    }
+  }catch(e){ console.warn("verifySessionNotDeleted", e); }
+  return true;
+}
+
+function startAccountDeletionWatch(){
+  try{
+    if(window._accountWatchTimer) clearInterval(window._accountWatchTimer);
+    if(typeof isAdmin==="function" && isAdmin()) return;
+    // checagem imediata + a cada 8s
+    try{ verifySessionNotDeleted(); }catch(e){}
+    window._accountWatchTimer=setInterval(function(){
+      try{
+        var app=document.getElementById("appScreen");
+        if(app && !app.classList.contains("hidden")) verifySessionNotDeleted();
+      }catch(e){}
+    }, 8000);
+  }catch(e){}
+}
+
 
 /** Cliente exclui a própria conta (configurações) — some do painel admin */
 async function deleteMyAccount(){
@@ -5957,7 +6183,11 @@ function adminGetDeletedSet(){
 function adminMarkDeleted(login, id, email){
   try{
     var d=adminGetDeletedSet();
-    if(login) d[String(login).toLowerCase()]= {at:Date.now(), id:id||"", email:email||""};
+    var lg=String(login||"").toLowerCase().trim();
+    var em=String(email||"").toLowerCase().trim();
+    var payload={at:Date.now(), id:id||"", email:em, login:lg};
+    if(lg) d[lg]=payload;
+    if(em) d[em]=payload;
     localStorage.setItem("fp_deleted_clients", JSON.stringify(d));
   }catch(e){}
 }
@@ -6068,7 +6298,7 @@ async function adminDeleteClient(login, clientId){
 
 async function adminDeleteClientDo(login, clientId){
   try{
-    toast("Excluindo…","info");
+    toast("Excluindo conta…","info");
     var reg=[];
     try{ reg=typeof getClientsRegistry==="function"?getClientsRegistry():JSON.parse(localStorage.getItem("fp_clients_registry")||"[]"); }catch(e){}
     var target=(reg||[]).find(function(c){
@@ -6080,40 +6310,34 @@ async function adminDeleteClientDo(login, clientId){
       if(!clientId) clientId=String(target.id||"");
       targetEmail=String(target.email||"");
     }
+    // tenta obter e-mail da nuvem se faltar
+    if(login && !targetEmail && typeof clientsRest==="function"){
+      try{
+        var qe=await clientsRest("GET","clients?select=id,login,email&login=eq."+encodeURIComponent(login)+"&limit=3");
+        if(qe && qe.ok && Array.isArray(qe.data) && qe.data[0]){
+          targetEmail=String(qe.data[0].email||"");
+          if(!clientId) clientId=String(qe.data[0].id||"");
+        }
+      }catch(e){}
+    }
     if(!login && !clientId){ toast("Cliente não encontrado","error"); return; }
-    try{ if(typeof adminMarkDeleted==="function") adminMarkDeleted(login, clientId, targetEmail); }catch(e){}
-    try{ if(login && typeof wipeLocalWorkspaceForLogin==="function") wipeLocalWorkspaceForLogin(login); }catch(e){}
+    login=String(login||"").toLowerCase().trim();
+    targetEmail=String(targetEmail||"").toLowerCase().trim();
 
-    // 1) registry local
-    try{
-      reg=(reg||[]).filter(function(c){
-        if(login && (c.login||"").toLowerCase()===login) return false;
-        if(clientId && String(c.id)===clientId) return false;
-        return true;
-      });
-      if(typeof saveClientsRegistry==="function") saveClientsRegistry(reg); else localStorage.setItem("fp_clients_registry",JSON.stringify(reg));
-    }catch(e){}
-
-    // 2) fp_users
-    try{
-      var users=JSON.parse(localStorage.getItem("fp_users")||"{}");
-      var changed=false;
-      Object.keys(users).forEach(function(k){
-        if(login && k.toLowerCase()===login){ delete users[k]; changed=true; }
-      });
-      if(changed) localStorage.setItem("fp_users",JSON.stringify(users));
-    }catch(e){}
-
-    // 3) paid list
+    // 1) Marca EXCLUÍDO na nuvem imediatamente (para derrubar sessão ativa em outros aparelhos)
     try{
       if(login){
-        var paid=JSON.parse(localStorage.getItem("fp_paid_logins")||"[]");
-        paid=paid.filter(function(x){ return String(x).toLowerCase()!==login; });
-        localStorage.setItem("fp_paid_logins",JSON.stringify(paid));
+        await clientsRest("PATCH","clients?login=eq."+encodeURIComponent(login), {status:"excluido", temp_password:"", paid:false});
       }
-    }catch(e){}
+      if(targetEmail){
+        await clientsRest("PATCH","clients?email=eq."+encodeURIComponent(targetEmail), {status:"excluido", temp_password:"", paid:false});
+      }
+      if(clientId && String(clientId).length>=20){
+        await clientsRest("PATCH","clients?id=eq."+encodeURIComponent(clientId), {status:"excluido", temp_password:"", paid:false});
+      }
+    }catch(e){ console.warn("mark excluido", e); }
 
-    // 4) cloud REST (publishable key)
+    // 2) Apaga da nuvem de fato
     var cloudOk=false;
     try{
       var delRes=await deleteClientFromCloud(login, clientId, targetEmail);
@@ -6121,14 +6345,40 @@ async function adminDeleteClientDo(login, clientId){
       if(!cloudOk && delRes && delRes.error) console.warn("cloud delete", delRes.error);
     }catch(e){ console.warn("cloud delete", e); }
 
+    // 3) Tombstone na nuvem (status excluido) — garante que o app do cliente detecte e derrube a sessão
+    try{
+      if(login){
+        var tomb={
+          login:login,
+          name:"(excluído)",
+          email: targetEmail || (login.indexOf("@")>=0?login:(login.replace(/[^a-z0-9]/g,"")+"@excluido.local")),
+          status:"excluido",
+          temp_password:"",
+          paid:false
+        };
+        var insT=await clientsRest("POST","clients?on_conflict=login", tomb);
+        if(!(insT && insT.ok)){
+          await clientsRest("PATCH","clients?login=eq."+encodeURIComponent(login), {status:"excluido", temp_password:"", paid:false, name:"(excluído)"});
+        }
+        cloudOk=true;
+      }
+    }catch(e){ console.warn("tombstone", e); }
+
+    // 3) Limpa TUDO no aparelho do admin
+    try{ purgeLocalAccountCompletely(login, targetEmail); }catch(e){
+      try{ if(typeof adminMarkDeleted==="function") adminMarkDeleted(login, clientId, targetEmail); }catch(e2){}
+      try{ if(login && typeof wipeLocalWorkspaceForLogin==="function") wipeLocalWorkspaceForLogin(login); }catch(e2){}
+    }
+
     window._adminClientsCache=(window._adminClientsCache||[]).filter(function(c){
       if(login && (c.login||"").toLowerCase()===login) return false;
       if(clientId && String(c.id)===clientId) return false;
+      if(targetEmail && String(c.email||"").toLowerCase()===targetEmail) return false;
       return true;
     });
-    adminRenderClientList();
-    toast(cloudOk?"Cliente excluído":"Cliente removido do painel","success");
-    setTimeout(function(){ try{ loadClients(); }catch(e){} }, 500);
+    try{ adminRenderClientList(); }catch(e){}
+    toast(cloudOk?"Conta eliminada. O usuário perde o acesso na hora.":"Conta removida do painel e marcada como excluída.","success");
+    setTimeout(function(){ try{ loadClients(); }catch(e){} }, 400);
   }catch(e){
     console.error(e);
     toast("Erro ao excluir: "+(e.message||e),"error");

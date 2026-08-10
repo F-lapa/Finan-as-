@@ -385,7 +385,7 @@ body.app-locked #paywallModal { display: block !important; }
       <div class="min-w-0 pt-0.5">
         <p class="font-extrabold text-sm sm:text-base text-slate-800 dark:text-slate-100 leading-snug" id="trialPayTitle">Faltam 7 dias para terminar o seu teste</p>
         <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed" id="trialPayText">Aproveite cada recurso agora. Quando o teste acabar, um único Pix libera o acesso vitalício — sem mensalidade, para sempre.</p>
-        <p class="text-[11px] text-indigo-600 dark:text-indigo-300 font-semibold mt-1.5" id="trialPayHint"><i class="fas fa-sparkles mr-1"></i>Organize suas finanças hoje e continue sem interrupção.</p>
+        <p class="text-[11px] text-indigo-600 dark:text-indigo-300 font-semibold mt-1.5" id="trialPayHint"><i class="fas fa-wand-magic-sparkles mr-1"></i>Organize suas finanças hoje e continue sem interrupção.</p>
       </div>
     </div>
     <button type="button" id="trialPayBtn" onclick="showSection('payment')" class="w-full sm:w-auto shrink-0 px-5 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-sm font-bold shadow-lg shadow-emerald-500/30 hover:brightness-110 transition">
@@ -606,19 +606,31 @@ body.app-locked #paywallModal { display: block !important; }
           <p class="text-indigo-100 text-xs mt-0.5 m-0">Pergunte por texto ou voz · análise local ou com sua API</p>
         </div>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <select id="aiVoiceSelect" onchange="onAiVoiceChange()" class="text-[11px] font-semibold px-2.5 py-1.5 rounded-full bg-white/15 border border-white/25 text-white outline-none max-w-[160px] cursor-pointer" title="Escolher voz" style="color-scheme:dark">
+          <option value="">Voz padrão</option>
+        </select>
+        <select id="aiVoiceRate" onchange="onAiVoiceChange()" class="text-[11px] font-semibold px-2 py-1.5 rounded-full bg-white/15 border border-white/25 text-white outline-none cursor-pointer" title="Velocidade" style="color-scheme:dark">
+          <option value="0.85">Lenta</option>
+          <option value="1" selected>Normal</option>
+          <option value="1.15">Rápida</option>
+          <option value="1.3">Muito rápida</option>
+        </select>
         <button type="button" id="aiVoiceToggle" onclick="toggleAiAutoSpeak()" class="text-[11px] font-bold px-3 py-1.5 rounded-full bg-white/15 border border-white/25 hover:bg-white/25 transition" title="Ligar/desligar resposta falada">
-          <i class="fas fa-volume-up mr-1" id="aiVoiceIcon"></i><span id="aiVoiceLabel">Voz ON</span>
+          <i class="fas fa-volume-up mr-1" id="aiVoiceIcon"></i><span id="aiVoiceLabel">Voz OFF</span>
+        </button>
+        <button type="button" onclick="previewAiVoice()" class="text-[11px] font-bold px-3 py-1.5 rounded-full bg-white/15 border border-white/25 hover:bg-white/25 transition" title="Testar voz">
+          <i class="fas fa-ear-listen mr-1"></i>Testar
         </button>
       </div>
     </div>
   </div>
 
   <div class="ai-shell">
-    <div id="aiChat" class="h-[min(52vh,420px)] overflow-y-auto p-4 sm:p-5 space-y-3 bg-gradient-to-b from-slate-50/80 to-white dark:from-slate-950/40 dark:to-slate-900/20">
+    <div id="aiChat" class="overflow-y-auto p-4 sm:p-5 space-y-3 bg-gradient-to-b from-slate-50/80 to-white dark:from-slate-950/40 dark:to-slate-900/20" style="height:min(52vh,420px)">
       <div class="text-center py-10 px-4" id="aiEmpty">
         <div class="w-16 h-16 mx-auto mb-4 rounded-3xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-          <i class="fas fa-sparkles text-white text-2xl"></i>
+          <i class="fas fa-wand-magic-sparkles text-white text-2xl"></i>
         </div>
         <p class="text-sm font-bold text-slate-700 dark:text-slate-200 m-0">Como posso ajudar nas suas finanças?</p>
         <p class="text-xs text-slate-500 mt-2 max-w-sm mx-auto leading-relaxed">Fale ou digite. Funciona offline com análise local; com API key as respostas ficam ainda melhores.</p>
@@ -631,11 +643,13 @@ body.app-locked #paywallModal { display: block !important; }
     </div>
 
     <div class="px-3 sm:px-4 pb-2">
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
         <button type="button" onclick="askPreset('Como está meu mês financeiro?')" class="ai-chip text-left text-xs px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300"><i class="fas fa-calendar-check text-indigo-500 mr-1.5"></i>Como está meu mês?</button>
-        <button type="button" onclick="askPreset('Onde posso economizar?')" class="ai-chip text-left text-xs px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300"><i class="fas fa-piggy-bank text-emerald-500 mr-1.5"></i>Onde economizar?</button>
+        <button type="button" onclick="askPreset('Onde posso economizar este mês?')" class="ai-chip text-left text-xs px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300"><i class="fas fa-piggy-bank text-emerald-500 mr-1.5"></i>Onde economizar?</button>
         <button type="button" onclick="askPreset('Quais foram meus maiores gastos?')" class="ai-chip text-left text-xs px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300"><i class="fas fa-chart-pie text-amber-500 mr-1.5"></i>Maiores gastos</button>
-        <button type="button" onclick="askPreset('Me dê um resumo das minhas finanças')" class="ai-chip text-left text-xs px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300"><i class="fas fa-list-check text-violet-500 mr-1.5"></i>Resumo geral</button>
+        <button type="button" onclick="askPreset('Estou no limite de alguma categoria?')" class="ai-chip text-left text-xs px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300"><i class="fas fa-gauge-high text-rose-500 mr-1.5"></i>Limites</button>
+        <button type="button" onclick="askPreset('Devo investir agora com o que sobrou?')" class="ai-chip text-left text-xs px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300"><i class="fas fa-chart-line text-amber-500 mr-1.5"></i>Investir?</button>
+        <button type="button" onclick="askPreset('Me dê dicas práticas para esta semana')" class="ai-chip text-left text-xs px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300"><i class="fas fa-lightbulb text-violet-500 mr-1.5"></i>Dicas da semana</button>
       </div>
     </div>
 
@@ -654,7 +668,7 @@ body.app-locked #paywallModal { display: block !important; }
       </div>
       <p id="aiVoiceStatus" class="text-[11px] text-slate-400 mt-2 px-1 m-0 flex items-center gap-1.5">
         <i class="fas fa-info-circle"></i>
-        <span>Toque no microfone para perguntar por voz. A resposta pode ser lida em voz alta.</span>
+        <span>Microfone: Chrome/Edge em HTTPS. Digite e envie a qualquer momento. Use “Ouvir” nas respostas.</span>
       </p>
     </div>
   </div>
@@ -783,7 +797,7 @@ body.app-locked #paywallModal { display: block !important; }
       <input type="date" id="reportTo" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/30">
     </div>
     <button type="button" onclick="generateReport()" class="btn-primary text-white px-4 py-2.5 rounded-xl text-sm font-bold w-full">
-      <i class="fas fa-sparkles mr-1"></i> Gerar extrato
+      <i class="fas fa-wand-magic-sparkles mr-1"></i> Gerar extrato
     </button>
   </div>
   <div class="flex flex-wrap gap-2">
@@ -1266,6 +1280,111 @@ function findLocalAccount(loginOrEmail){
   return null;
 }
 
+
+/** Verifica se login ou e-mail já estão em uso (local + registry). */
+function isLoginTakenLocal(login){
+  var lg=String(login||"").toLowerCase().trim();
+  if(!lg) return false;
+  try{
+    if(getAccount(lg)) return true;
+  }catch(e){}
+  try{
+    var map=getUsersMap();
+    if(map[lg]) return true;
+  }catch(e){}
+  try{
+    var reg=getClientsRegistrySafe();
+    for(var i=0;i<reg.length;i++){
+      if(String(reg[i].login||"").toLowerCase()===lg) return true;
+    }
+  }catch(e){}
+  return false;
+}
+function isEmailTakenLocal(email){
+  var em=String(email||"").toLowerCase().trim();
+  if(!em || em.indexOf("@")<0) return false;
+  try{
+    var map=getUsersMap();
+    for(var k in map){
+      if(!map[k]) continue;
+      if(String(map[k].email||"").toLowerCase()===em) return true;
+      // login igual ao e-mail também conta
+      if(String(k).toLowerCase()===em) return true;
+    }
+  }catch(e){}
+  try{
+    var reg=getClientsRegistrySafe();
+    for(var i=0;i<reg.length;i++){
+      var c=reg[i];
+      if(String(c.email||"").toLowerCase()===em) return true;
+      if(String(c.login||"").toLowerCase()===em) return true;
+    }
+  }catch(e){}
+  return false;
+}
+/** Consulta a nuvem (tabela clients) por login e/ou e-mail. */
+async function findDuplicateInCloud(login, email){
+  var result={ loginTaken:false, emailTaken:false, row:null };
+  if(typeof clientsRest!=="function") return result;
+  var lg=String(login||"").toLowerCase().trim();
+  var em=String(email||"").toLowerCase().trim();
+  try{
+    if(lg){
+      var r1=await clientsRest("GET","clients?select=id,login,email,name&login=eq."+encodeURIComponent(lg)+"&limit=5");
+      if(r1 && r1.ok && Array.isArray(r1.data) && r1.data.length){
+        result.loginTaken=true;
+        result.row=r1.data[0];
+      }
+    }
+  }catch(e){}
+  try{
+    if(em && em.indexOf("@")>=0){
+      var r2=await clientsRest("GET","clients?select=id,login,email,name&email=eq."+encodeURIComponent(em)+"&limit=5");
+      if(r2 && r2.ok && Array.isArray(r2.data) && r2.data.length){
+        result.emailTaken=true;
+        if(!result.row) result.row=r2.data[0];
+      }
+      // também login cadastrado como o próprio e-mail
+      var r3=await clientsRest("GET","clients?select=id,login,email,name&login=eq."+encodeURIComponent(em)+"&limit=5");
+      if(r3 && r3.ok && Array.isArray(r3.data) && r3.data.length){
+        result.emailTaken=true;
+        result.loginTaken=result.loginTaken||true;
+        if(!result.row) result.row=r3.data[0];
+      }
+    }
+  }catch(e){}
+  return result;
+}
+async function assertUniqueLoginEmail(login, email, opts){
+  opts=opts||{};
+  var lg=String(login||"").toLowerCase().trim();
+  var em=String(email||"").toLowerCase().trim();
+  if(lg && isLoginTakenLocal(lg)){
+    return { ok:false, field:"login", message:"Este login já está cadastrado. Escolha outro login." };
+  }
+  if(em && isEmailTakenLocal(em)){
+    return { ok:false, field:"email", message:"Este e-mail já está cadastrado. Use outro e-mail ou faça login." };
+  }
+  // e-mail usado como login por outra conta
+  if(em && isLoginTakenLocal(em)){
+    return { ok:false, field:"email", message:"Este e-mail já está em uso como login de outra conta." };
+  }
+  if(lg && em && lg===em){
+    // ok: pode ser login=email, since already checked taken
+  }
+  if(opts.skipCloud) return { ok:true };
+  try{
+    var cloud=await findDuplicateInCloud(lg, em);
+    if(cloud.loginTaken){
+      return { ok:false, field:"login", message:"Este login já está cadastrado. Escolha outro login." };
+    }
+    if(cloud.emailTaken){
+      return { ok:false, field:"email", message:"Este e-mail já está cadastrado. Use outro e-mail ou faça login." };
+    }
+  }catch(e){ console.warn("assertUnique cloud", e); }
+  return { ok:true };
+}
+
 function upsertAccount(login, data){
   var m=getUsersMap(); var k=String(login||"").toLowerCase().trim();
   m[k]=Object.assign({}, m[k]||{}, data, {login:k}); saveUsersMap(m); return m[k];
@@ -1666,9 +1785,16 @@ async function doRegister(){
   if(pass.length<6){ showErr("A senha precisa ter no mínimo 6 caracteres"); return; }
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ showErr("E-mail inválido"); return; }
   if(login===(typeof ADMIN_EMAIL!=="undefined"?ADMIN_EMAIL.toLowerCase():"")){ showErr("Este login é reservado"); return; }
-  if(getAccount(login)){ showErr("Já existe uma conta com este login"); return; }
-  var map=getUsersMap();
-  for(var k in map){ if(map[k]&&map[k].email===email){ showErr("Já existe conta com este e-mail"); return; } }
+  // Bloqueia login/e-mail duplicados (local + nuvem)
+  try{
+    setAuthStatus("Verificando se login e e-mail estão livres…");
+    var uniq=await assertUniqueLoginEmail(login, email, {});
+    if(!uniq.ok){ showErr(uniq.message||"Login ou e-mail já cadastrado"); setAuthStatus(""); return; }
+  }catch(e){
+    // fallback local estrito
+    if(isLoginTakenLocal(login)){ showErr("Este login já está cadastrado. Escolha outro login."); return; }
+    if(isEmailTakenLocal(email)){ showErr("Este e-mail já está cadastrado. Use outro e-mail ou faça login."); return; }
+  }
   var createdAt=new Date().toISOString();
   var trialEnds=new Date(Date.now()+7*24*60*60*1000).toISOString();
   var acc=upsertAccount(login,{ name:name, email:email, pass:pass, password:pass, trialEnds:trialEnds, paid:false, paidAt:null, paymentPending:false, createdAt:createdAt });
@@ -1712,13 +1838,27 @@ async function doRegister(){
       });
       if(res.error){
         console.warn("signup cloud", res.error);
-        // tenta login se e-mail já existir no auth
-        var li=await sb.auth.signInWithPassword({email:email,password:pass});
-        if(!li.error && li.data && li.data.user){
-          cloudUser=li.data.user;
-        } else {
-          cloudErr=res.error.message||"signup falhou";
+        var msg=String((res.error && res.error.message)||"").toLowerCase();
+        // E-mail já existe no Auth — não cria conta nem faz login automático no fluxo de cadastro
+        if(/already|registered|exists|em uso|already been|user already|email.*exist/i.test(msg) || (res.error && res.error.status===422)){
+          showErr("Este e-mail já está cadastrado. Use outro e-mail ou faça login.");
+          setAuthStatus("");
+          // remove conta local criada prematuramente se ainda não havia
+          try{
+            var um=getUsersMap();
+            if(um[login] && String(um[login].email||"").toLowerCase()===email){
+              // mantém se já era de sessão anterior; no cadastro novo limpamos
+              delete um[login];
+              saveUsersMap(um);
+            }
+          }catch(e){}
+          try{
+            var regx=getClientsRegistrySafe().filter(function(c){ return String(c.login||"").toLowerCase()!==login; });
+            saveClientsRegistrySafe(regx);
+          }catch(e){}
+          return;
         }
+        cloudErr=res.error.message||"signup falhou";
       } else if(res.data && res.data.user){
         cloudUser=res.data.user;
       }
@@ -3498,7 +3638,7 @@ function renderTrialPayBanner(){
     if(hint){
       if(days===1) hint.innerHTML='<i class="fas fa-bell mr-1"></i>Último dia! Garanta agora e não perca o ritmo das suas finanças.';
       else if(days<=3) hint.innerHTML='<i class="fas fa-fire mr-1"></i>Falta pouco — trave o vitalício e use o Finanças Smart sem pressa.';
-      else hint.innerHTML='<i class="fas fa-sparkles mr-1"></i>Organize hoje e continue depois do teste, sem mensalidade.';
+      else hint.innerHTML='<i class="fas fa-wand-magic-sparkles mr-1"></i>Organize hoje e continue depois do teste, sem mensalidade.';
     }
     if(btn) btn.innerHTML='<i class="fas fa-crown mr-1.5"></i>Garantir vitalício';
   } else {
@@ -4162,7 +4302,7 @@ async function deleteMyAccount(){
 }
 
 function loadAiSettings(){
-  try{ refreshAiVoiceToggle(); }catch(e){}
+  try{ refreshAiVoiceToggle(); populateAiVoiceSelect(); }catch(e){}
   var k=document.getElementById("aiApiKey"),u=document.getElementById("aiBaseUrl"),m=document.getElementById("aiModel");
   if(k)k.value=localStorage.getItem("fp_ai_key")||"";
   if(u)u.value=localStorage.getItem("fp_ai_url")||"";
@@ -4196,101 +4336,318 @@ function monthStats(){
     return {id:cid,name:cat?cat.name:cid,amount:byCat[cid]};
   }).sort(function(a,b){return b.amount-a.amount});
   recent=T.slice().sort(function(a,b){return b.date.localeCompare(a.date)}).slice(0,12);
-  return {tm:tm,mi:mi,me:me,ti:ti,te:te,balance:ti-te,monthBalance:mi-me,cats:cats,recent:recent,day:now.getDate(),daysInMonth:new Date(now.getFullYear(),now.getMonth()+1,0).getDate()};
+  return {tm:tm,monthKey:tm,mi:mi,me:me,ti:ti,te:te,balance:ti-te,monthBalance:mi-me,cats:cats,recent:recent,day:now.getDate(),daysInMonth:new Date(now.getFullYear(),now.getMonth()+1,0).getDate()};
 }
 function localAIAnswer(q){
   var s=monthStats();
   var name=(typeof getPersonName==="function"?getPersonName():"você");
   var first=(name||"você").split(/\s+/)[0]||"você";
   var lower=(q||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
-  var byCat={};
-  T.filter(function(t){return t.type==="despesa"&&mk(t.date)===s.monthKey}).forEach(function(t){
-    byCat[t.categoryId]=(byCat[t.categoryId]||0)+t.amount;
-  });
-  var top=Object.keys(byCat).map(function(id){
-    var c=C.find(function(x){return x.id===id});
-    return {name:c?c.name:id,amount:byCat[id]};
-  }).sort(function(a,b){return b.amount-a.amount});
-  var recent=T.slice().sort(function(a,b){return b.date.localeCompare(a.date)}).slice(0,5);
-  var day=new Date().getDate();
-  var daysInMonth=new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate();
+  var day=s.day||new Date().getDate();
+  var daysInMonth=s.daysInMonth||new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate();
+  var daysLeft=Math.max(0,daysInMonth-day);
   var pace=day>0?(s.me/day)*daysInMonth:0;
   var saveRate=s.mi>0?((s.mi-s.me)/s.mi*100):0;
+  var dailyBudget=daysLeft>0&&s.monthBalance>0?(s.monthBalance/daysLeft):0;
+  var byCat={};
+  (T||[]).filter(function(t){return t.type==="despesa"&&mk(t.date)===s.monthKey}).forEach(function(t){
+    byCat[t.categoryId]=(byCat[t.categoryId]||0)+Number(t.amount||0);
+  });
+  var top=Object.keys(byCat).map(function(id){
+    var c=(C||[]).find(function(x){return x.id===id});
+    return {id:id,name:c?c.name:id,amount:byCat[id]};
+  }).sort(function(a,b){return b.amount-a.amount});
+  var recent=(T||[]).slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date))}).slice(0,6);
   var limitAlerts=[];
   Object.keys(L||{}).forEach(function(cid){
+    var lim=Number(L[cid]||0);
+    if(lim<=0) return;
     var spent=byCat[cid]||0;
-    if(L[cid]>0 && spent>=L[cid]*0.8){
-      var c=C.find(function(x){return x.id===cid});
-      limitAlerts.push({name:c?c.name:cid,spent:spent,lim:L[cid],over:spent>L[cid]});
+    if(spent>=lim*0.7){
+      var c=(C||[]).find(function(x){return x.id===cid});
+      limitAlerts.push({name:c?c.name:cid,spent:spent,lim:lim,pct:lim?spent/lim*100:0,over:spent>lim});
     }
   });
-  var lines=[];
-  var greet=["Oi, "+first+"!","Olá, "+first+"!","E aí, "+first+"!"];
-  lines.push(greet[Math.floor(Math.random()*greet.length)]+" Analisei suas contas de verdade.");
-  lines.push("");
-  lines.push("Seu retrato agora");
-  lines.push("• Receitas do mês: "+fm(s.mi));
-  lines.push("• Despesas do mês: "+fm(s.me));
-  lines.push("• Sobra do mês: "+fm(s.monthBalance)+(saveRate?(" ("+saveRate.toFixed(0)+"% da receita)"):""));
-  lines.push("• Saldo geral: "+fm(s.balance));
-  if(s.me>0) lines.push("• Ritmo: ~"+fm(s.me/Math.max(day,1))+"/dia · projeção ~"+fm(pace));
-  lines.push("");
-  if(top.length){
-    lines.push("Onde o dinheiro mais sai");
-    top.slice(0,5).forEach(function(t,i){
-      var pct=s.me>0?(t.amount/s.me*100).toFixed(0):"0";
-      lines.push((i+1)+") "+t.name+" — "+fm(t.amount)+" ("+pct+"%)");
+  limitAlerts.sort(function(a,b){return b.pct-a.pct});
+
+  // últimos 7 dias vs resto do mês
+  var now=new Date();
+  var weekAgo=new Date(now.getFullYear(),now.getMonth(),now.getDate()-7);
+  var weekSpend=0, monthTx=0;
+  (T||[]).forEach(function(t){
+    if(t.type!=="despesa"||mk(t.date)!==s.monthKey) return;
+    monthTx++;
+    var d=new Date(t.date+"T12:00:00");
+    if(d>=weekAgo) weekSpend+=Number(t.amount||0);
+  });
+
+  // intenções
+  var wantSave=/economiz|cortar|reduz|enxugar|onde posso|sobrar mais|guardar mais/.test(lower);
+  var wantInvest=/investir|investimento|tesouro|acao|ação|acoes|ações|etf|fii|cdb|bolsa|reserva de emergencia|reserva de emergência/.test(lower);
+  var wantRank=/maior|maiores|ranking|onde foi|onde gastei|top gasto/.test(lower);
+  var wantStatus=/como esta|como está|resumo|situacao|situação|meu mes|meu mês|financas|finanças|retrato|balanco|balanço/.test(lower);
+  var wantLimit=/limite|estou no limite|estouura|estou estour|estourou|teto/.test(lower);
+  var wantWeek=/semana|proximos dias|próximos dias|dicas praticas|dicas práticas|o que fazer|plano/.test(lower);
+  var wantIncome=/receita|salario|salário|entrada|ganhei|renda/.test(lower);
+  var wantExpense=/despesa|gastei|gasto|saida|saída|paguei/.test(lower);
+  var wantGoal=/meta|objetivo|juntar|guardar para/.test(lower);
+  var wantDebt=/divida|dívida|cartao|cartão|juros|parcel/.test(lower);
+  var wantCat=null;
+  (C||[]).forEach(function(c){
+    if(!c||!c.name) return;
+    var cn=String(c.name).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+    if(cn.length>=3 && lower.indexOf(cn)>=0) wantCat=c;
+  });
+  // categorias comuns por palavra
+  if(!wantCat){
+    var map=[["aliment|mercado|feira|supermerc","aliment"],["transporte|uber|gasolina|combust","transp"],["lazer|cinema|streaming|netflix","lazer"],["moradia|aluguel|condomin","moradia"],["saude|farmacia|farmácia|medico","saude"],["educacao|educação|curso|escola","educ"]];
+    // fuzzy via name includes
+    (C||[]).forEach(function(c){
+      if(wantCat||!c||!c.name) return;
+      var cn=String(c.name).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+      if(/aliment|mercado|comida|feira/.test(lower)&&/aliment|mercado|comida|feira|supermerc/.test(cn)) wantCat=c;
+      else if(/transporte|uber|gasolina|onibus|ônibus/.test(lower)&&/transp|uber|gasolina|mobil/.test(cn)) wantCat=c;
+      else if(/lazer|cinema|streaming|delivery|ifood/.test(lower)&&/lazer|entreten|delivery|restaur/.test(cn)) wantCat=c;
+      else if(/moradia|aluguel|condomin/.test(lower)&&/moradia|aluguel|casa|moradia/.test(cn)) wantCat=c;
     });
+  }
+
+  function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+  var lines=[];
+  var greet=pick(["Oi, "+first+"!","Olá, "+first+"!","E aí, "+first+"!",""+first+", vamos lá:"]);
+
+  // categoria específica
+  if(wantCat){
+    var spent=byCat[wantCat.id]||0;
+    var lim=Number((L&&L[wantCat.id])||0);
+    lines.push(greet+" Foquei em “"+wantCat.name+"”.");
     lines.push("");
+    lines.push("• Gasto no mês em "+wantCat.name+": "+fm(spent));
+    if(s.me>0) lines.push("• Peso no total de despesas: "+(spent/s.me*100).toFixed(0)+"%");
+    if(lim>0){
+      lines.push("• Limite: "+fm(lim)+" ("+(spent/lim*100).toFixed(0)+"% usado)"+(spent>lim?" — estourou":spent>=lim*0.85?" — quase no teto":""));
+      if(spent>lim) lines.push("Sugestão: pause gastos extras nessa categoria até o próximo mês ou aumente o limite com consciência.");
+      else lines.push("Ainda cabe cerca de "+fm(Math.max(0,lim-spent))+" sem estourar o limite.");
+    } else {
+      lines.push("Você ainda não definiu limite para essa categoria. Vale criar um teto em Limites.");
+    }
+    var catTx=(T||[]).filter(function(t){return t.type==="despesa"&&t.categoryId===wantCat.id&&mk(t.date)===s.monthKey;})
+      .sort(function(a,b){return Number(b.amount)-Number(a.amount)}).slice(0,4);
+    if(catTx.length){
+      lines.push("");
+      lines.push("Maiores lançamentos:");
+      catTx.forEach(function(t){ lines.push("• "+fd(t.date)+" · "+t.description+" · "+fm(t.amount)); });
+    }
+    lines.push("");
+    lines.push(pick([
+      "Dica: agende um valor semanal máximo para "+wantCat.name+" e acompanhe aqui.",
+      "Dica: antes de gastar de novo em "+wantCat.name+", pergunte se é necessidade ou impulso.",
+      "Dica: se for recorrente, cadastre em Recorrentes para não esquecer no orçamento."
+    ]));
+    return lines.join("\n");
+  }
+
+  if(wantLimit){
+    lines.push(greet+" Chequei seus limites.");
+    lines.push("");
+    if(!limitAlerts.length){
+      var hasAny=Object.keys(L||{}).some(function(k){return Number(L[k])>0});
+      if(!hasAny) lines.push("Você ainda não configurou limites. Em “Limites”, defina tetos nas 2–3 categorias que mais pesam.");
+      else lines.push("Nenhuma categoria está perto do limite (≥70%). Bom controle por enquanto.");
+    } else {
+      limitAlerts.forEach(function(a){
+        lines.push("• "+a.name+": "+fm(a.spent)+" de "+fm(a.lim)+" ("+a.pct.toFixed(0)+"%)"+(a.over?" ⚠ estourou":" · atenção"));
+      });
+      lines.push("");
+      lines.push(pick([
+        "Priorize frear a categoria mais esticada nos próximos "+daysLeft+" dias.",
+        "Troque gastos impulsivos dessas categorias por alternativas mais baratas esta semana."
+      ]));
+    }
+    return lines.join("\n");
+  }
+
+  if(wantRank){
+    lines.push(greet+" Aqui está o ranking de despesas do mês.");
+    lines.push("");
+    if(!top.length) lines.push("Ainda não há despesas lançadas neste mês.");
+    else {
+      top.slice(0,8).forEach(function(t,i){
+        var pct=s.me>0?(t.amount/s.me*100).toFixed(0):"0";
+        lines.push((i+1)+". "+t.name+" — "+fm(t.amount)+" ("+pct+"%)");
+      });
+      if(top[0]){
+        lines.push("");
+        lines.push("A fatia maior é “"+top[0].name+"”. Cortar 10% ali libera cerca de "+fm(top[0].amount*0.1)+".");
+      }
+    }
+    if(weekSpend>0){
+      lines.push("");
+      lines.push("Nos últimos 7 dias você desembolsou "+fm(weekSpend)+" em despesas.");
+    }
+    return lines.join("\n");
+  }
+
+  if(wantSave){
+    lines.push(greet+" Montei um plano de economia com base nos seus números.");
+    lines.push("");
+    lines.push("Hoje: receitas "+fm(s.mi)+" · despesas "+fm(s.me)+" · sobra "+fm(s.monthBalance)+".");
+    if(pace>s.mi && s.mi>0) lines.push("No ritmo atual, a projeção de despesa do mês fica em "+fm(pace)+", acima da receita.");
+    lines.push("");
+    if(top[0]) lines.push("1. “"+top[0].name+"” ("+fm(top[0].amount)+"): meta de corte 15% ≈ "+fm(top[0].amount*0.15));
+    if(top[1]) lines.push("2. “"+top[1].name+"”: revise 2 gastos e troque um por opção mais barata");
+    if(top[2]) lines.push("3. “"+top[2].name+"”: defina um teto semanal");
+    else lines.push("3. Defina limites nas categorias que mais pesam");
+    lines.push("4. Lance tudo que faltar — o que não entra no app escapa do controle");
+    if(daysLeft>0 && s.monthBalance>0) lines.push("5. Orçamento livre por dia até o fim do mês: ~"+fm(dailyBudget));
+    else if(s.monthBalance<=0) lines.push("5. Mês apertado: só gastos essenciais até virar o mês");
+    lines.push("");
+    lines.push(pick([
+      "Regra prática: 24h de espera antes de qualquer compra não essencial acima de R$ 50.",
+      "Regra prática: um dia na semana sem delivery/app de comida já costuma aparecer no saldo.",
+      "Regra prática: no dia do salário, separe a meta de sobra antes de gastar o resto."
+    ]));
+    return lines.join("\n");
+  }
+
+  if(wantInvest){
+    lines.push(greet+" Sobre investir com o seu momento atual:");
+    lines.push("");
+    var ideal=Math.max(s.me*3, s.mi>0?s.mi*3:3000);
+    lines.push("• Sobra do mês: "+fm(s.monthBalance));
+    lines.push("• Saldo geral lançado: "+fm(s.balance));
+    lines.push("• Reserva sugerida (≈3 meses de gasto): "+fm(ideal));
+    lines.push("");
+    if(s.monthBalance<=0){
+      lines.push("Agora não é hora de aumentar risco. Estabilize o mês (despesa ≤ receita) e monte a reserva em Tesouro Selic/CDB com liquidez diária.");
+    } else if(s.balance<ideal*0.5){
+      lines.push("Prioridade: engordar a reserva de emergência. Aporte a sobra em Tesouro Selic ou CDB líquido até chegar perto de "+fm(ideal)+".");
+    } else if(s.balance<ideal){
+      lines.push("Reserva a meio caminho. Continue aportando o seguro; com o que sobrar além disso, pode estudar Tesouro IPCA+ para metas longas.");
+    } else {
+      lines.push("Base parece ok. Próximos passos possíveis: IPCA+ (longo prazo), ETF de índice com aporte mensal, ou FIIs — só com dinheiro que pode oscilar.");
+      lines.push("Evite concentrar tudo em uma única ação.");
+    }
+    if(limitAlerts.some(function(a){return a.over})) lines.push("Obs.: há categoria estourada — resolva o vazamento antes de subir o risco.");
+    return lines.join("\n");
+  }
+
+  if(wantIncome){
+    var recInc=(T||[]).filter(function(t){return t.type==="receita"&&mk(t.date)===s.monthKey})
+      .sort(function(a,b){return Number(b.amount)-Number(a.amount)}).slice(0,5);
+    lines.push(greet+" Suas entradas deste mês somam "+fm(s.mi)+".");
+    lines.push("");
+    if(!recInc.length) lines.push("Nenhuma receita lançada ainda. Cadastre o salário e outras entradas para eu analisar melhor.");
+    else recInc.forEach(function(t){ lines.push("• "+fd(t.date)+" · "+t.description+" · "+fm(t.amount)); });
+    if(s.mi>0) lines.push("");
+    if(s.mi>0) lines.push("Você está convertendo "+(saveRate).toFixed(0)+"% da receita em sobra este mês.");
+    return lines.join("\n");
+  }
+
+  if(wantDebt){
+    lines.push(greet+" Sobre dívidas e juros:");
+    lines.push("");
+    lines.push("1. Liste dívidas caras (cartão, cheque especial, crediário) — elas costumam render mais que qualquer investimento.");
+    lines.push("2. Use parte da sobra ("+fm(Math.max(s.monthBalance,0))+") para abater a de maior juros primeiro.");
+    lines.push("3. Evite parcelar consumo do dia a dia; se já parcelou, não acumule novas.");
+    lines.push("4. Mantenha uma reserva mínima mesmo pagando dívida, para não voltar ao cartão no imprevisto.");
+    return lines.join("\n");
+  }
+
+  if(wantGoal){
+    lines.push(greet+" Para metas:");
+    lines.push("");
+    lines.push("• Veja a aba Metas e defina valor + prazo.");
+    lines.push("• Com sobra de "+fm(s.monthBalance)+", um aporte mensal fixo acelera o objetivo.");
+    if(daysLeft>0&&s.monthBalance>0) lines.push("• Até o fim do mês ainda dá para separar parte dos ~"+fm(dailyBudget)+" livres por dia.");
+    lines.push("• Meta curta (<1 ano): Tesouro Selic/CDB. Meta longa: IPCA+ ou ETF com disciplina.");
+    return lines.join("\n");
+  }
+
+  if(wantWeek){
+    lines.push(greet+" Plano prático para esta semana:");
+    lines.push("");
+    lines.push("1. Lance qualquer gasto que ainda não entrou no app");
+    if(top[0]) lines.push("2. Ponha um freio em “"+top[0].name+"” (maior categoria)");
+    else lines.push("2. Defina um teto semanal de gastos variáveis");
+    if(limitAlerts[0]) lines.push("3. Atenção especial a “"+limitAlerts[0].name+"” (perto do limite)");
+    else lines.push("3. Um dia sem delivery/compras por impulso");
+    if(s.monthBalance>0) lines.push("4. Separe um valor fixo da sobra no começo da semana");
+    else lines.push("4. Só gastos essenciais até equilibrar receitas e despesas");
+    lines.push("5. Revise limites na sexta e ajuste o que não está realista");
+    return lines.join("\n");
+  }
+
+  // status / resumo / default — mas com variação e sem sempre o mesmo bloco idêntico
+  var tone;
+  if(s.mi<=0&&s.me<=0) tone="empty";
+  else if(s.monthBalance>0&&saveRate>=20) tone="great";
+  else if(s.monthBalance>0) tone="ok";
+  else if(pace>s.mi&&s.mi>0) tone="risk";
+  else tone="tight";
+
+  lines.push(greet+" "+pick([
+    "Analisei seus lançamentos deste mês.",
+    "Olhei receitas, despesas e o ritmo até agora.",
+    "Fiz um diagnóstico com os dados que você já lançou."
+  ]));
+  lines.push("");
+  lines.push("📸 Panorama ("+day+"/"+daysInMonth+")");
+  lines.push("• Receitas: "+fm(s.mi));
+  lines.push("• Despesas: "+fm(s.me));
+  lines.push("• Sobra: "+fm(s.monthBalance)+(s.mi>0?(" · "+saveRate.toFixed(0)+"% da receita"):""));
+  if(s.me>0) lines.push("• Projeção de despesa no ritmo atual: "+fm(pace));
+  if(daysLeft>0&&s.monthBalance>0) lines.push("• Folga média por dia restante: ~"+fm(dailyBudget));
+  if(weekSpend>0) lines.push("• Despesas nos últimos 7 dias: "+fm(weekSpend));
+
+  lines.push("");
+  if(tone==="empty"){
+    lines.push("Você ainda está começando. Lance o salário e os gastos principais — a análise fica bem mais precisa.");
+  } else if(tone==="great"){
+    lines.push(pick([
+      "Situação forte: você está guardando uma fatia saudável. Mantenha o hábito e direcione a sobra (reserva → depois investir).",
+      "Excelente ritmo de sobra. O risco agora é relaxar nos pequenos gastos — continue lançando tudo."
+    ]));
+  } else if(tone==="ok"){
+    lines.push(pick([
+      "Mês positivo, mas dá para melhorar a taxa de sobra rumo a 20%+ da receita.",
+      "No azul, porém com margem apertada. Um corte pequeno nas maiores categorias já ajuda."
+    ]));
+  } else if(tone==="risk"){
+    lines.push("No ritmo atual a despesa pode ultrapassar a receita. Vale frear variáveis (lazer, delivery, compras) nos próximos "+daysLeft+" dias.");
+  } else {
+    lines.push("Mês no vermelho ou zerado. Priorize essenciais e evite novos parcelamentos até reequilibrar.");
+  }
+
+  if(top.length){
+    lines.push("");
+    lines.push("Maiores categorias:");
+    top.slice(0,3).forEach(function(t,i){ lines.push((i+1)+". "+t.name+" — "+fm(t.amount)); });
   }
   if(limitAlerts.length){
-    lines.push("Limites");
-    limitAlerts.forEach(function(a){
-      lines.push((a.over?"• Estourou ":"• Quase no teto ")+a.name+": "+fm(a.spent)+" / "+fm(a.lim));
+    lines.push("");
+    lines.push("Alertas de limite:");
+    limitAlerts.slice(0,3).forEach(function(a){
+      lines.push("• "+a.name+": "+a.pct.toFixed(0)+"% do teto"+(a.over?" (estourou)":""));
     });
-    lines.push("");
   }
-  if(/economiz|cortar|reduz|onde posso|enxugar/.test(lower)){
-    lines.push("Plano de economia para você");
-    if(top[0]) lines.push("1. “"+top[0].name+"”: cortar 15% ≈ "+fm(top[0].amount*0.15));
-    if(top[1]) lines.push("2. Revisar “"+top[1].name+"”");
-    lines.push("3. Defina limites nas 2 categorias que mais pesam");
-    lines.push("4. Lance tudo na barra (ex: mercado 40)");
-  } else if(/investir|investimento|tesouro|acao|ação|reserva|poupar/.test(lower)){
-    lines.push("Rota de investimento");
-    var ideal=Math.max(s.me*3,1000);
-    lines.push("1. Reserva alvo ≈ "+fm(ideal)+". Saldo geral: "+fm(s.balance));
-    if(s.balance<ideal) lines.push("2. Falta ~"+fm(ideal-s.balance)+" — priorize Tesouro Selic / CDB líquido");
-    else lines.push("2. Reserva ok — próximo passo: IPCA+ ou ETF com aporte mensal");
-    lines.push("3. Bolsa só com dinheiro que pode ficar parado anos");
-  } else if(/maior|gasto|onde foi|ranking/.test(lower)){
-    lines.push("Ranking do mês");
-    if(!top.length) lines.push("Ainda sem despesas para ranquear.");
-    else top.slice(0,6).forEach(function(t,i){ lines.push((i+1)+". "+t.name+" — "+fm(t.amount)); });
-  } else if(/como esta|como está|resumo|mes|mês|situacao|situação/.test(lower)){
-    lines.push("Diagnóstico");
-    if(s.mi<=0&&s.me<=0) lines.push("Começando agora: lance salário e gastos para eu afiar a análise.");
-    else if(s.monthBalance>0&&saveRate>=20) lines.push("Excelente, "+first+". Poupança acima de 20%. Mantenha.");
-    else if(s.monthBalance>0) lines.push("Positivo. Meta: guardar pelo menos 20% do que entra.");
-    else lines.push("Mês no vermelho. Trave lazer e delivery até voltar ao azul.");
-  } else {
-    lines.push("O que eu faria esta semana");
-    if(top[0]) lines.push("• Revisar “"+top[0].name+"” e cortar 1 gasto");
-    lines.push("• Lançar o que faltou dos últimos dias");
-    if(s.monthBalance>=0) lines.push("• Separar a sobra no dia do salário");
-    else lines.push("• Congelar gastos não essenciais");
+
+  if(wantStatus || wantExpense || (!wantSave&&!wantInvest&&!wantRank&&!wantWeek)){
     lines.push("");
-    lines.push("Pergunte: “onde economizar?”, “como está meu mês?”, “devo investir?”");
+    lines.push(pick([
+      "Próximo passo: "+(top[0]?("revisar “"+top[0].name+"” e lançar o que faltar"):"lançar as movimentações que ainda não entraram")+".",
+      "Quer que eu detalhe uma categoria? Pergunte por nome, ex.: “quanto gastei com alimentação?”.",
+      "Posso montar um plano de corte, falar de limites ou de investimento — é só pedir."
+    ]));
   }
-  if(recent.length){
+
+  if(recent.length && (wantStatus || tone==="empty")){
     lines.push("");
-    lines.push("Últimos lançamentos");
-    recent.forEach(function(t){
+    lines.push("Últimos lançamentos:");
+    recent.slice(0,4).forEach(function(t){
       lines.push("• "+fd(t.date)+" · "+t.description+" · "+(t.type==="receita"?"+":"−")+" "+fm(t.amount));
     });
   }
-  lines.push("");
-  lines.push("Continuo aqui, "+first+". Quanto mais você lança, mais preciso eu fico.");
   return lines.join("\n");
 }
 
@@ -4308,29 +4665,47 @@ function buildFinanceContext(){
   var recent=T.slice().sort(function(a,b){return b.date.localeCompare(a.date)}).slice(0,8).map(function(t){
     return t.date+" "+t.description+" "+t.type+" R$ "+Number(t.amount).toFixed(2);
   }).join(" | ");
-  return "Você é o assistente financeiro pessoal do Finanças Smart. Cliente: "+(name||"usuário")+". Português do Brasil, caloroso e direto. Use o nome. Não invente valores. Dados: receitas mês R$ "+s.mi.toFixed(2)+"; despesas R$ "+s.me.toFixed(2)+"; sobra R$ "+s.monthBalance.toFixed(2)+"; saldo total R$ "+s.balance.toFixed(2)+"; categorias: "+(top||"sem despesas")+"; recentes: "+(recent||"nenhum")+". Diagnóstico + 2 a 4 ações práticas.";
+  var limits=[];
+  Object.keys(L||{}).forEach(function(cid){
+    var lim=Number(L[cid]||0); if(lim<=0) return;
+    var spent=byCat[cid]||0;
+    var c=C.find(function(x){return x.id===cid});
+    limits.push((c?c.name:cid)+": R$ "+spent.toFixed(2)+"/"+lim.toFixed(2));
+  });
+  return "Você é o assistente financeiro pessoal do Finanças Smart. Responda em português do Brasil, de forma calorosa, direta e específica aos dados. Cliente: "+(name||"usuário")+". Use o primeiro nome. NÃO invente valores que não estejam nos dados. "+
+    "Dados do mês: receitas R$ "+s.mi.toFixed(2)+"; despesas R$ "+s.me.toFixed(2)+"; sobra R$ "+s.monthBalance.toFixed(2)+"; saldo total lançado R$ "+s.balance.toFixed(2)+
+    "; dia "+s.day+" de "+s.daysInMonth+
+    "; top categorias: "+(top||"sem despesas")+
+    "; limites: "+(limits.join("; ")||"nenhum")+
+    "; recentes: "+(recent||"nenhum")+
+    ". Adapte a resposta à pergunta (não repita o mesmo roteiro sempre). Se perguntarem de uma categoria, foque nela. Dê 2 a 4 ações práticas e objetivas.";
 }
 
 /* ===== Assistente IA — voz (STT + TTS) ===== */
-window._aiAutoSpeak = localStorage.getItem("fp_ai_auto_speak") !== "0";
+window._aiAutoSpeak = localStorage.getItem("fp_ai_auto_speak") === "1";
 window._aiRec = null;
 window._aiListening = false;
+window._aiSpeakNext = false;
 function setAiVoiceStatus(msg, listening){
-  var el=document.getElementById("aiVoiceStatus");
-  if(el) el.innerHTML = '<i class="fas '+(listening?"fa-microphone text-rose-500":"fa-info-circle")+'"></i><span>'+msg+'</span>';
-  var btn=document.getElementById("aiMicBtn");
-  if(btn){ if(listening) btn.classList.add("ai-listening"); else btn.classList.remove("ai-listening"); }
+  try{
+    var el=document.getElementById("aiVoiceStatus");
+    if(el) el.innerHTML = '<i class="fas '+(listening?"fa-microphone text-rose-500":"fa-info-circle")+' mr-1"></i><span>'+String(msg||"")+'</span>';
+    var btn=document.getElementById("aiMicBtn");
+    if(btn){ if(listening) btn.classList.add("ai-listening"); else btn.classList.remove("ai-listening"); }
+  }catch(e){}
 }
 function refreshAiVoiceToggle(){
-  var on = window._aiAutoSpeak !== false;
-  var lab=document.getElementById("aiVoiceLabel");
-  var ic=document.getElementById("aiVoiceIcon");
-  if(lab) lab.textContent = on ? "Voz ON" : "Voz OFF";
-  if(ic){ ic.className = on ? "fas fa-volume-up mr-1" : "fas fa-volume-mute mr-1"; }
+  try{
+    var on = !!window._aiAutoSpeak;
+    var lab=document.getElementById("aiVoiceLabel");
+    var ic=document.getElementById("aiVoiceIcon");
+    if(lab) lab.textContent = on ? "Voz ON" : "Voz OFF";
+    if(ic){ ic.className = on ? "fas fa-volume-up mr-1" : "fas fa-volume-mute mr-1"; }
+  }catch(e){}
 }
 function toggleAiAutoSpeak(){
   window._aiAutoSpeak = !window._aiAutoSpeak;
-  localStorage.setItem("fp_ai_auto_speak", window._aiAutoSpeak ? "1" : "0");
+  try{ localStorage.setItem("fp_ai_auto_speak", window._aiAutoSpeak ? "1" : "0"); }catch(e){}
   refreshAiVoiceToggle();
   if(!window._aiAutoSpeak) stopAiSpeech();
   try{ toast(window._aiAutoSpeak ? "Resposta por voz ligada" : "Resposta por voz desligada"); }catch(e){}
@@ -4338,77 +4713,169 @@ function toggleAiAutoSpeak(){
 function stopAiSpeech(){
   try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(e){}
 }
+function getAiVoiceList(){
+  var voices=[];
+  try{ voices = (window.speechSynthesis && window.speechSynthesis.getVoices()) || []; }catch(e){}
+  var pt = voices.filter(function(v){ return /pt/i.test(v.lang||"") || /portug/i.test(v.name||""); });
+  if(!pt.length) pt = voices.slice();
+  // prefer BR first
+  pt.sort(function(a,b){
+    var sa = /pt-BR|Brazil/i.test((a.lang||"")+(a.name||""))?0:1;
+    var sb = /pt-BR|Brazil/i.test((b.lang||"")+(b.name||""))?0:1;
+    if(sa!==sb) return sa-sb;
+    return String(a.name||"").localeCompare(String(b.name||""));
+  });
+  return pt;
+}
+function populateAiVoiceSelect(){
+  var sel=document.getElementById("aiVoiceSelect");
+  if(!sel) return;
+  var voices=getAiVoiceList();
+  var saved="";
+  try{ saved=localStorage.getItem("fp_ai_voice")||""; }catch(e){}
+  var rateSaved="";
+  try{ rateSaved=localStorage.getItem("fp_ai_voice_rate")||"1"; }catch(e){}
+  var rateEl=document.getElementById("aiVoiceRate");
+  if(rateEl && rateSaved) rateEl.value=rateSaved;
+  var cur=sel.value;
+  sel.innerHTML='<option value="">Voz padrão (pt-BR)</option>';
+  voices.forEach(function(v,i){
+    var opt=document.createElement("option");
+    opt.value=v.name;
+    opt.textContent=(v.name||("Voz "+(i+1)))+(v.lang?(" · "+v.lang):"");
+    sel.appendChild(opt);
+  });
+  if(saved){
+    var ok=[].some.call(sel.options,function(o){return o.value===saved});
+    if(ok) sel.value=saved;
+  } else if(cur){
+    var ok2=[].some.call(sel.options,function(o){return o.value===cur});
+    if(ok2) sel.value=cur;
+  }
+}
+function onAiVoiceChange(){
+  var sel=document.getElementById("aiVoiceSelect");
+  var rateEl=document.getElementById("aiVoiceRate");
+  try{
+    if(sel) localStorage.setItem("fp_ai_voice", sel.value||"");
+    if(rateEl) localStorage.setItem("fp_ai_voice_rate", rateEl.value||"1");
+  }catch(e){}
+}
+function previewAiVoice(){
+  speakAiText("Olá! Esta é a voz escolhida no assistente Finanças Smart. Você pode mudar a voz e a velocidade aqui em cima.");
+}
 function speakAiText(text){
-  if(!text || !window.speechSynthesis) return;
+  if(!text) return;
+  if(!window.speechSynthesis){
+    try{ toast("Seu navegador não suporta leitura em voz alta","error"); }catch(e){}
+    return;
+  }
   try{
     window.speechSynthesis.cancel();
-    var u = new SpeechSynthesisUtterance(String(text).replace(/\s+/g," ").trim());
+    var clean = String(text).replace(/\s+/g," ").replace(/[•\-\*]+/g," ").trim();
+    if(clean.length > 1400) clean = clean.slice(0,1400) + "…";
+    var u = new SpeechSynthesisUtterance(clean);
     u.lang = "pt-BR";
-    u.rate = 1.02;
+    var rate=1;
+    try{
+      var rateEl=document.getElementById("aiVoiceRate");
+      rate=parseFloat((rateEl&&rateEl.value)||localStorage.getItem("fp_ai_voice_rate")||"1")||1;
+    }catch(e){ rate=1; }
+    u.rate = Math.min(1.4, Math.max(0.75, rate));
     u.pitch = 1;
-    var voices = window.speechSynthesis.getVoices() || [];
-    var pt = voices.find(function(v){ return /pt-BR|pt_BR/i.test(v.lang); }) || voices.find(function(v){ return /^pt/i.test(v.lang); });
-    if(pt) u.voice = pt;
+    var voices=getAiVoiceList();
+    var chosen="";
+    try{
+      var sel=document.getElementById("aiVoiceSelect");
+      chosen=(sel&&sel.value)||localStorage.getItem("fp_ai_voice")||"";
+    }catch(e){}
+    var voice=null;
+    if(chosen) voice=voices.find(function(v){return v.name===chosen;})||null;
+    if(!voice) voice=voices.find(function(v){return /pt-BR|pt_BR/i.test(v.lang||"");})||voices[0]||null;
+    if(voice){ u.voice=voice; if(voice.lang) u.lang=voice.lang; }
     window.speechSynthesis.speak(u);
   }catch(e){ console.warn("tts", e); }
 }
 function toggleAiVoiceInput(){
-  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!SR){
-    setAiVoiceStatus("Seu navegador não suporta reconhecimento de voz. Use Chrome ou Edge.", false);
-    try{ toast("Reconhecimento de voz não suportado neste navegador","error"); }catch(e){}
-    return;
-  }
-  if(window._aiListening && window._aiRec){
-    try{ window._aiRec.stop(); }catch(e){}
-    window._aiListening = false;
-    setAiVoiceStatus("Microfone parado. Toque para falar de novo.", false);
-    return;
-  }
-  stopAiSpeech();
-  var rec = new SR();
-  window._aiRec = rec;
-  rec.lang = "pt-BR";
-  rec.interimResults = true;
-  rec.continuous = false;
-  rec.maxAlternatives = 1;
-  window._aiListening = true;
-  setAiVoiceStatus("Ouvindo… fale sua pergunta sobre finanças.", true);
-  var finalText = "";
-  rec.onresult = function(ev){
-    var interim = "";
-    for(var i=ev.resultIndex;i<ev.results.length;i++){
-      var t = ev.results[i][0].transcript;
-      if(ev.results[i].isFinal) finalText += t;
-      else interim += t;
+  try{
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR){
+      setAiVoiceStatus("Reconhecimento de voz não suportado. Use Chrome/Edge (HTTPS).", false);
+      try{ toast("Navegador sem reconhecimento de voz","error"); }catch(e){}
+      return;
     }
-    var input = document.getElementById("aiInput");
-    if(input) input.value = (finalText || interim || "").trim();
-  };
-  rec.onerror = function(ev){
-    window._aiListening = false;
-    var msg = "Não consegui ouvir. Tente de novo.";
-    if(ev && ev.error === "not-allowed") msg = "Permissão de microfone negada. Libere o microfone no navegador.";
-    else if(ev && ev.error === "no-speech") msg = "Nenhuma fala detectada. Toque no microfone e fale.";
-    setAiVoiceStatus(msg, false);
-  };
-  rec.onend = function(){
-    window._aiListening = false;
-    var input = document.getElementById("aiInput");
-    var q = (input && input.value ? input.value : finalText || "").trim();
-    if(q){
-      setAiVoiceStatus("Pergunta captada. Processando…", false);
-      askAI();
-    } else {
-      setAiVoiceStatus("Toque no microfone para perguntar por voz. A resposta pode ser lida em voz alta.", false);
+    if(typeof window.isSecureContext !== "undefined" && !window.isSecureContext && location.protocol !== "https:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1"){
+      setAiVoiceStatus("Voz precisa de HTTPS (ou localhost). Abra o app em um site seguro.", false);
+      try{ toast("Microfone exige conexão segura (HTTPS)","error"); }catch(e){}
+      return;
     }
-  };
-  try{ rec.start(); }catch(e){
-    window._aiListening = false;
-    setAiVoiceStatus("Não foi possível iniciar o microfone.", false);
+    if(window._aiListening && window._aiRec){
+      try{ window._aiRec.stop(); }catch(e){}
+      window._aiListening = false;
+      setAiVoiceStatus("Microfone parado. Toque para falar de novo.", false);
+      return;
+    }
+    stopAiSpeech();
+    var rec = new SR();
+    window._aiRec = rec;
+    rec.lang = "pt-BR";
+    rec.interimResults = true;
+    rec.continuous = false;
+    try{ rec.maxAlternatives = 1; }catch(e){}
+    window._aiListening = true;
+    setAiVoiceStatus("Ouvindo… fale sua pergunta sobre finanças.", true);
+    var finalText = "";
+    rec.onresult = function(ev){
+      var interim = "";
+      for(var i=ev.resultIndex;i<ev.results.length;i++){
+        var t = ev.results[i][0].transcript;
+        if(ev.results[i].isFinal) finalText += t;
+        else interim += t;
+      }
+      var input = document.getElementById("aiInput");
+      if(input) input.value = (finalText || interim || "").trim();
+    };
+    rec.onerror = function(ev){
+      window._aiListening = false;
+      var code = ev && ev.error ? String(ev.error) : "";
+      var msg = "Não consegui ouvir. Tente de novo.";
+      if(code === "not-allowed") msg = "Permissão de microfone negada. Libere o microfone no navegador.";
+      else if(code === "no-speech") msg = "Nenhuma fala detectada. Toque no microfone e fale.";
+      else if(code === "network") msg = "Falha de rede no reconhecimento de voz.";
+      else if(code === "aborted") msg = "Captura cancelada.";
+      setAiVoiceStatus(msg, false);
+    };
+    rec.onend = function(){
+      window._aiListening = false;
+      var input = document.getElementById("aiInput");
+      var q = ((input && input.value) ? input.value : (finalText || "")).trim();
+      if(q){
+        window._aiSpeakNext = true; // resposta desta pergunta por voz deve ser falada
+        setAiVoiceStatus("Pergunta captada. Processando…", false);
+        try{ askAI(); }catch(e){ console.warn(e); setAiVoiceStatus("Erro ao processar a pergunta.", false); }
+      } else {
+        setAiVoiceStatus("Toque no microfone para perguntar por voz.", false);
+      }
+    };
+    try{ rec.start(); }
+    catch(e){
+      window._aiListening = false;
+      setAiVoiceStatus("Não foi possível iniciar o microfone.", false);
+    }
+  }catch(e){
+    console.warn(e);
+    setAiVoiceStatus("Erro ao acessar o microfone.", false);
   }
 }
-try{ if(window.speechSynthesis){ window.speechSynthesis.onvoiceschanged = function(){}; refreshAiVoiceToggle(); } }catch(e){}
+try{
+  if(window.speechSynthesis){
+    window.speechSynthesis.onvoiceschanged = function(){ try{ populateAiVoiceSelect(); }catch(e){} };
+    try{ window.speechSynthesis.getVoices(); }catch(e){}
+    setTimeout(function(){ try{ populateAiVoiceSelect(); }catch(e){} }, 250);
+  }
+  refreshAiVoiceToggle();
+  try{ populateAiVoiceSelect(); }catch(e){}
+}catch(e){}
 
 function appendAiMsg(role,text){
   var chat=document.getElementById("aiChat");
@@ -4446,7 +4913,7 @@ function appendAiMsg(role,text){
     var speakBtn=document.createElement("button");
     speakBtn.type="button";
     speakBtn.className="ai-speak-btn text-[11px] text-slate-400 px-2 py-0.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40";
-    speakBtn.innerHTML='<i class="fas fa-volume-high mr-1"></i>Ouvir';
+    speakBtn.innerHTML='<i class="fas fa-volume-up mr-1"></i>Ouvir';
     speakBtn.onclick=function(){ speakAiText(text); };
     actions.appendChild(speakBtn);
     col.appendChild(actions);
@@ -4454,7 +4921,8 @@ function appendAiMsg(role,text){
   wrap.appendChild(col);
   chat.appendChild(wrap);
   chat.scrollTop=chat.scrollHeight;
-  if(isAsst && text && window._aiAutoSpeak!==false){
+  if(isAsst && text && (window._aiAutoSpeak || window._aiSpeakNext)){
+    window._aiSpeakNext = false;
     try{ speakAiText(text); }catch(e){}
   }
 }
@@ -4465,49 +4933,81 @@ function askPreset(q){
 }
 async function askAI(){
   var input=document.getElementById("aiInput");
+  if(!input){ try{toast("Campo de pergunta não encontrado","error");}catch(e){} return; }
   var q=(input.value||"").trim();
-  if(!q)return;
+  if(!q){ setAiVoiceStatus("Digite ou fale uma pergunta primeiro.", false); return; }
   input.value="";
   appendAiMsg("user",q);
   var btn=document.getElementById("aiBtn");
-  btn.disabled=true;btn.innerHTML="<i class=\"fas fa-spinner fa-spin\"></i>";
-  var key=localStorage.getItem("fp_ai_key")||"";
-  if(!key){
-    // Local AI — always works
-    await new Promise(function(r){setTimeout(r,280)});
-    appendAiMsg("assistant",localAIAnswer(q));
-    btn.disabled=false;btn.innerHTML="<i class=\"fas fa-paper-plane\"></i>";
-    return;
-  }
-  appendAiMsg("system","Consultando IA...");
-  var base=(localStorage.getItem("fp_ai_url")||"").replace(/\/$/,"");
-  if(!base)base="https://api.openai.com/v1";
-  var model=localStorage.getItem("fp_ai_model")||"";
-  if(!model)model=base.indexOf("groq")>=0?"llama-3.3-70b-versatile":"gpt-4o-mini";
+  if(btn){ btn.disabled=true; btn.innerHTML="<i class=\"fas fa-spinner fa-spin\"></i>"; }
+  function restoreBtn(){ if(btn){ btn.disabled=false; btn.innerHTML="<i class=\"fas fa-paper-plane\"></i>"; } }
   try{
-    var res=await fetch(base+"/chat/completions",{
-      method:"POST",
-      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-      body:JSON.stringify({model:model,messages:[{role:"system",content:buildFinanceContext()},{role:"user",content:q}],temperature:0.75,max_tokens:900})
-    });
-    var data=await res.json();
-    var chat=document.getElementById("aiChat");
-    if(chat.lastChild&&chat.lastChild.className&&chat.lastChild.className.indexOf("text-center")>=0)chat.lastChild.remove();
-    if(!res.ok){
-      var errMsg=(data&&data.error&&data.error.message)||("HTTP "+res.status);
-      appendAiMsg("assistant","Erro da API: "+errMsg+"\n\nUsando análise local:\n\n"+localAIAnswer(q));
-    } else {
-      var answer=(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||"Sem resposta.";
-      appendAiMsg("assistant",answer);
+    var key="";
+    try{ key=localStorage.getItem("fp_ai_key")||""; }catch(e){ key=""; }
+    if(!key){
+      await new Promise(function(r){setTimeout(r,220)});
+      var ans = localAIAnswer(q);
+      appendAiMsg("assistant", ans || "Não consegui montar uma resposta agora. Tente de novo.");
+      restoreBtn();
+      setAiVoiceStatus("Pronto. Toque no microfone para perguntar de novo.", false);
+      return;
     }
-  }catch(e){
-    var chat=document.getElementById("aiChat");
-    if(chat.lastChild&&chat.lastChild.className&&chat.lastChild.className.indexOf("text-center")>=0)chat.lastChild.remove();
-    appendAiMsg("assistant","Falha de conexão com a API. Resposta local:\n\n"+localAIAnswer(q));
+    appendAiMsg("system","Consultando IA...");
+    var base="";
+    try{ base=(localStorage.getItem("fp_ai_url")||"").replace(/\/$/,""); }catch(e){}
+    if(!base) base="https://api.openai.com/v1";
+    var model="";
+    try{ model=localStorage.getItem("fp_ai_model")||""; }catch(e){}
+    if(!model) model=base.indexOf("groq")>=0?"llama-3.3-70b-versatile":"gpt-4o-mini";
+    try{
+      var res=await fetch(base+"/chat/completions",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+        body:JSON.stringify({model:model,messages:[{role:"system",content:buildFinanceContext()},{role:"user",content:q}],temperature:0.75,max_tokens:900})
+      });
+      var data=await res.json().catch(function(){return {};});
+      var chat=document.getElementById("aiChat");
+      if(chat){
+        var sysNodes=chat.querySelectorAll("[data-ai-sys]");
+        sysNodes.forEach(function(n){n.remove();});
+      }
+      if(!res.ok){
+        var errMsg=(data&&data.error&&data.error.message)||("HTTP "+res.status);
+        appendAiMsg("assistant","Erro da API: "+errMsg+"\n\nUsando análise local:\n\n"+localAIAnswer(q));
+      } else {
+        var answer=(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||"Sem resposta.";
+        appendAiMsg("assistant",answer);
+      }
+    }catch(e){
+      var chat2=document.getElementById("aiChat");
+      if(chat2){
+        var sys2=chat2.querySelectorAll("[data-ai-sys]");
+        sys2.forEach(function(n){n.remove();});
+      }
+      appendAiMsg("assistant","Falha de conexão com a API. Resposta local:\n\n"+localAIAnswer(q));
+    }
+    setAiVoiceStatus("Pronto. Toque no microfone para perguntar de novo.", false);
+  }catch(err){
+    console.warn(err);
+    try{ appendAiMsg("assistant","Ocorreu um erro ao responder. Tente novamente.\n\n"+(localAIAnswer(q)||"")); }catch(e2){}
   }
-  btn.disabled=false;btn.innerHTML="<i class=\"fas fa-paper-plane\"></i>";
+  restoreBtn();
 }
 
+// expõe para onclick inline
+window.toggleAiVoiceInput = toggleAiVoiceInput;
+window.toggleAiAutoSpeak = toggleAiAutoSpeak;
+window.stopAiSpeech = stopAiSpeech;
+window.speakAiText = speakAiText;
+window.askAI = askAI;
+window.askPreset = askPreset;
+window.appendAiMsg = appendAiMsg;
+window.populateAiVoiceSelect = populateAiVoiceSelect;
+window.onAiVoiceChange = onAiVoiceChange;
+window.previewAiVoice = previewAiVoice;
+window.assertUniqueLoginEmail = assertUniqueLoginEmail;
+window.isLoginTakenLocal = isLoginTakenLocal;
+window.isEmailTakenLocal = isEmailTakenLocal;
 
 
 function initReport(){
@@ -5048,6 +5548,14 @@ async function generateClient(){
   if(pass&&pass.length<4){toast("Senha mínima 4 caracteres","error");return}
   if(!pass)pass=genPassword();
   var synth=clientSynthEmail(login,true);
+  // Bloqueia login/e-mail já existentes
+  try{
+    if(isLoginTakenLocal(login)){ toast("Este login já está cadastrado. Escolha outro.","error"); return; }
+    var uniq=await assertUniqueLoginEmail(login, synth, {});
+    if(!uniq.ok){ toast(uniq.message||"Login ou e-mail já cadastrado","error"); return; }
+  }catch(e){
+    if(isLoginTakenLocal(login)){ toast("Este login já está cadastrado. Escolha outro.","error"); return; }
+  }
   var box=document.getElementById("newClientCreds");
   box.classList.remove("hidden");
   box.innerHTML="<p class=\"text-slate-500\">Salvando na nuvem…</p>";

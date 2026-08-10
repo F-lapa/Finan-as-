@@ -1282,20 +1282,38 @@ function findLocalAccount(loginOrEmail){
 
 
 /** Verifica se login ou e-mail já estão em uso (local + registry). */
+function _isExcludedStatus(st){
+  st=String(st||"").toLowerCase();
+  return st==="excluido"||st==="deleted"||st==="excluído"||st==="revogado";
+}
 function isLoginTakenLocal(login){
   var lg=String(login||"").toLowerCase().trim();
   if(!lg) return false;
+  // tombstone local de exclusão não bloqueia novo cadastro
   try{
-    if(getAccount(lg)) return true;
-  }catch(e){}
-  try{
-    var map=getUsersMap();
-    if(map[lg]) return true;
-  }catch(e){}
+    var ds=typeof adminGetDeletedSet==="function"?adminGetDeletedSet():JSON.parse(localStorage.getItem("fp_deleted_clients")||"{}");
+    if(ds && ds[lg]) {
+      // se está no set de deletados, não conta como "em uso"
+    } else {
+      try{
+        var acc=getAccount(lg);
+        if(acc && !_isExcludedStatus(acc.status)) return true;
+      }catch(e){}
+      try{
+        var map=getUsersMap();
+        if(map[lg] && !_isExcludedStatus(map[lg].status)) return true;
+      }catch(e){}
+    }
+  }catch(e){
+    try{ if(getAccount(lg)) return true; }catch(e2){}
+  }
   try{
     var reg=getClientsRegistrySafe();
     for(var i=0;i<reg.length;i++){
-      if(String(reg[i].login||"").toLowerCase()===lg) return true;
+      var c=reg[i];
+      if(String(c.login||"").toLowerCase()!==lg) continue;
+      if(_isExcludedStatus(c.status)) continue;
+      return true;
     }
   }catch(e){}
   return false;
@@ -1304,18 +1322,24 @@ function isEmailTakenLocal(email){
   var em=String(email||"").toLowerCase().trim();
   if(!em || em.indexOf("@")<0) return false;
   try{
-    var map=getUsersMap();
-    for(var k in map){
-      if(!map[k]) continue;
-      if(String(map[k].email||"").toLowerCase()===em) return true;
-      // login igual ao e-mail também conta
-      if(String(k).toLowerCase()===em) return true;
+    var ds=typeof adminGetDeletedSet==="function"?adminGetDeletedSet():JSON.parse(localStorage.getItem("fp_deleted_clients")||"{}");
+    if(ds && ds[em]) {
+      // deletado — liberado
+    } else {
+      var map=getUsersMap();
+      for(var k in map){
+        if(!map[k]) continue;
+        if(_isExcludedStatus(map[k].status)) continue;
+        if(String(map[k].email||"").toLowerCase()===em) return true;
+        if(String(k).toLowerCase()===em) return true;
+      }
     }
   }catch(e){}
   try{
     var reg=getClientsRegistrySafe();
     for(var i=0;i<reg.length;i++){
       var c=reg[i];
+      if(_isExcludedStatus(c.status)) continue;
       if(String(c.email||"").toLowerCase()===em) return true;
       if(String(c.login||"").toLowerCase()===em) return true;
     }
@@ -1571,6 +1595,25 @@ async function pushClientToCloud(info){
     if(pass) payload.temp_password=String(pass);
     if(authId) payload.auth_user_id=authId;
 
+    // Remove resíduos de exclusão com mesmo login/e-mail antes de gravar
+    try{
+      if(payload.login){
+        var olds=await clientsRest("GET","clients?select=id,status,login&login=eq."+encodeURIComponent(payload.login)+"&limit=20");
+        if(olds && olds.ok && Array.isArray(olds.data)){
+          for(var oi=0;oi<olds.data.length;oi++){
+            await clientsRest("DELETE","clients?id=eq."+encodeURIComponent(olds.data[oi].id));
+          }
+        }
+      }
+      if(payload.email){
+        var olde=await clientsRest("GET","clients?select=id,email&email=eq."+encodeURIComponent(payload.email)+"&limit=20");
+        if(olde && olde.ok && Array.isArray(olde.data)){
+          for(var oj=0;oj<olde.data.length;oj++){
+            await clientsRest("DELETE","clients?id=eq."+encodeURIComponent(olde.data[oj].id));
+          }
+        }
+      }
+    }catch(e){}
     var up = await clientsRest("POST", "clients?on_conflict=login", payload);
     if(up.ok){
       console.log("pushClientToCloud REST ok", login, status);
@@ -1598,22 +1641,21 @@ async function pushClientToCloud(info){
 async function deleteClientFromCloud(login, clientId, email){
   var ok=false, lastErr="", deletedLogins=[];
   try{
-    var targets=[]; // rows to delete from cloud
-    // 1) Busca na nuvem por login / email / id (não confiar só no registry local)
+    var targets=[];
     var queries=[];
     if(login){
       var lg=String(login).toLowerCase().trim();
-      queries.push("clients?select=*&login=eq."+encodeURIComponent(lg)+"&limit=20");
-      // às vezes U veio como e-mail
-      if(lg.indexOf("@")>=0){
-        queries.push("clients?select=*&email=eq."+encodeURIComponent(lg)+"&limit=20");
-      }
+      queries.push("clients?select=*&login=eq."+encodeURIComponent(lg)+"&limit=50");
+      if(lg.indexOf("@")>=0) queries.push("clients?select=*&email=eq."+encodeURIComponent(lg)+"&limit=50");
+      // também linhas renomeadas de exclusão anterior
+      queries.push("clients?select=*&login=like."+encodeURIComponent("__del__"+lg+"__*")+"&limit=50");
     }
     if(email && String(email).indexOf("@")>=0){
-      queries.push("clients?select=*&email=eq."+encodeURIComponent(String(email).toLowerCase().trim())+"&limit=20");
+      var em=String(email).toLowerCase().trim();
+      queries.push("clients?select=*&email=eq."+encodeURIComponent(em)+"&limit=50");
     }
-    if(clientId && String(clientId).length>=20){ // UUID real do Supabase
-      queries.push("clients?select=*&id=eq."+encodeURIComponent(clientId)+"&limit=5");
+    if(clientId && String(clientId).length>=20){
+      queries.push("clients?select=*&id=eq."+encodeURIComponent(clientId)+"&limit=10");
     }
     var seen={};
     for(var qi=0; qi<queries.length; qi++){
@@ -1630,7 +1672,7 @@ async function deleteClientFromCloud(login, clientId, email){
       }catch(e){}
     }
 
-    // 2) Apaga cada linha encontrada por id (mais confiável)
+    // Apaga TODAS as linhas encontradas (inclusive status excluido)
     for(var ti=0; ti<targets.length; ti++){
       var row=targets[ti];
       try{
@@ -1639,68 +1681,72 @@ async function deleteClientFromCloud(login, clientId, email){
           ok=true;
           if(row.login) deletedLogins.push(String(row.login).toLowerCase());
         } else {
-          lastErr=d.error||lastErr;
+          // último recurso: força status e libera email/login únicos
+          var freeLogin="__del__"+String(row.login||"x")+"__"+Date.now();
+          var freeEmail="del+"+Date.now()+"_"+Math.random().toString(36).slice(2,8)+"@excluido.invalid";
+          var p=await clientsRest("PATCH", "clients?id=eq."+encodeURIComponent(row.id), {
+            status:"excluido",
+            login: freeLogin,
+            email: freeEmail,
+            temp_password:"",
+            paid:false,
+            name:"(excluído)"
+          });
+          if(p && p.ok){ ok=true; if(row.login) deletedLogins.push(String(row.login).toLowerCase()); }
+          else lastErr=(d && d.error)||(p && p.error)||lastErr;
         }
       }catch(e){ lastErr=String(e.message||e); }
     }
 
-    // 3) Reforço: delete direto por login e email (caso a busca não tenha achado)
+    // Reforço DELETE por filtros
+    async function forceDel(path){
+      try{
+        var r=await clientsRest("DELETE", path);
+        if(r && r.ok) ok=true;
+        else if(r && r.error) lastErr=r.error;
+      }catch(e){}
+    }
     if(login){
       var lg2=String(login).toLowerCase().trim();
-      if(lg2.indexOf("@")<0){
-        var dLogin=await clientsRest("DELETE", "clients?login=eq."+encodeURIComponent(lg2));
-        if(dLogin.ok){ ok=true; deletedLogins.push(lg2); }
-        else lastErr=dLogin.error||lastErr;
-      } else {
-        var dEm=await clientsRest("DELETE", "clients?email=eq."+encodeURIComponent(lg2));
-        if(dEm.ok) ok=true; else lastErr=dEm.error||lastErr;
-      }
+      await forceDel("clients?login=eq."+encodeURIComponent(lg2));
+      if(lg2.indexOf("@")>=0) await forceDel("clients?email=eq."+encodeURIComponent(lg2));
     }
     if(email && String(email).indexOf("@")>=0){
-      var dEmail=await clientsRest("DELETE", "clients?email=eq."+encodeURIComponent(String(email).toLowerCase().trim()));
-      if(dEmail.ok) ok=true; else lastErr=dEmail.error||lastErr;
+      await forceDel("clients?email=eq."+encodeURIComponent(String(email).toLowerCase().trim()));
+    }
+    if(clientId && String(clientId).length>=20){
+      await forceDel("clients?id=eq."+encodeURIComponent(clientId));
     }
 
-    // 4) Confirma se ainda existe; se sim, marca status excluido
+    // Confirma: se ainda existir com login/email original, renomeia para liberar unique
     if(login){
       var lg3=String(login).toLowerCase().trim();
-      var still=null;
       try{
-        var qStill = lg3.indexOf("@")>=0
-          ? await clientsRest("GET", "clients?select=id,login,status&email=eq."+encodeURIComponent(lg3)+"&limit=5")
-          : await clientsRest("GET", "clients?select=id,login,status&login=eq."+encodeURIComponent(lg3)+"&limit=5");
-        if(qStill.ok && Array.isArray(qStill.data) && qStill.data.length) still=qStill.data;
-      }catch(e){}
-      if(still && still.length){
-        for(var si=0; si<still.length; si++){
-          try{
-            await clientsRest("PATCH", "clients?id=eq."+encodeURIComponent(still[si].id), {status:"excluido", temp_password:""});
-            ok=true;
-            if(still[si].login) deletedLogins.push(String(still[si].login).toLowerCase());
-          }catch(e){}
-        }
-      }
-    }
-
-    // 5) Verificação final: se não existe mais na nuvem, sucesso
-    if(login){
-      var lg4=String(login).toLowerCase().trim();
-      try{
-        var qFinal = lg4.indexOf("@")>=0
-          ? await clientsRest("GET", "clients?select=id&email=eq."+encodeURIComponent(lg4)+"&limit=1")
-          : await clientsRest("GET", "clients?select=id&login=eq."+encodeURIComponent(lg4)+"&limit=1");
-        if(qFinal.ok && Array.isArray(qFinal.data) && qFinal.data.length===0) ok=true;
-        // se ainda tem e status não é excluido, falhou
-        if(qFinal.ok && Array.isArray(qFinal.data) && qFinal.data.length>0){
-          // tenta ver status
-          var qSt=await clientsRest("GET", "clients?select=id,status&login=eq."+encodeURIComponent(lg4)+"&limit=5");
-          var allEx=true;
-          if(qSt.ok && Array.isArray(qSt.data)){
-            qSt.data.forEach(function(r){
-              var st=String(r.status||"").toLowerCase();
-              if(st!=="excluido" && st!=="deleted" && st!=="excluído") allEx=false;
+        var qStill=await clientsRest("GET","clients?select=id,login,email,status&login=eq."+encodeURIComponent(lg3)+"&limit=20");
+        if(qStill.ok && Array.isArray(qStill.data)){
+          for(var si=0; si<qStill.data.length; si++){
+            var freeLogin2="__del__"+lg3+"__"+Date.now()+"_"+si;
+            var freeEmail2="del+"+Date.now()+"_"+si+"@excluido.invalid";
+            await clientsRest("PATCH","clients?id=eq."+encodeURIComponent(qStill.data[si].id), {
+              status:"excluido", login:freeLogin2, email:freeEmail2, temp_password:"", paid:false, name:"(excluído)"
             });
-            if(allEx) ok=true;
+            ok=true;
+          }
+        }
+      }catch(e){}
+    }
+    if(email && String(email).indexOf("@")>=0){
+      var em3=String(email).toLowerCase().trim();
+      try{
+        var qEm=await clientsRest("GET","clients?select=id,login,email&email=eq."+encodeURIComponent(em3)+"&limit=20");
+        if(qEm.ok && Array.isArray(qEm.data)){
+          for(var ei=0; ei<qEm.data.length; ei++){
+            var freeLogin3="__del__em__"+Date.now()+"_"+ei;
+            var freeEmail3="del+em+"+Date.now()+"_"+ei+"@excluido.invalid";
+            await clientsRest("PATCH","clients?id=eq."+encodeURIComponent(qEm.data[ei].id), {
+              status:"excluido", login:freeLogin3, email:freeEmail3, temp_password:"", paid:false, name:"(excluído)"
+            });
+            ok=true;
           }
         }
       }catch(e){}
@@ -1850,26 +1896,39 @@ async function doRegister(){
       if(res.error){
         console.warn("signup cloud", res.error);
         var msg=String((res.error && res.error.message)||"").toLowerCase();
-        // E-mail já existe no Auth — não cria conta nem faz login automático no fluxo de cadastro
-        if(/already|registered|exists|em uso|already been|user already|email.*exist/i.test(msg) || (res.error && res.error.status===422)){
-          showErr("Este e-mail já está cadastrado. Use outro e-mail ou faça login.");
-          setAuthStatus("");
-          // remove conta local criada prematuramente se ainda não havia
+        var authExists=/already|registered|exists|em uso|already been|user already|email.*exist/i.test(msg) || (res.error && (res.error.status===422||res.error.code==="user_already_exists"));
+        if(authExists){
+          // Se a conta foi excluída do painel (sem linha viva em clients), tenta reaproveitar o Auth
+          var stillTaken=false;
           try{
-            var um=getUsersMap();
-            if(um[login] && String(um[login].email||"").toLowerCase()===email){
-              // mantém se já era de sessão anterior; no cadastro novo limpamos
-              delete um[login];
-              saveUsersMap(um);
+            var dup=await findDuplicateInCloud(login, email);
+            stillTaken=!!(dup && (dup.loginTaken||dup.emailTaken));
+          }catch(e){}
+          if(stillTaken){
+            showErr("Este e-mail ou login já está cadastrado. Use outro ou faça login.");
+            setAuthStatus("");
+            try{ purgeLocalAccountCompletely(login, email); }catch(e){}
+            return;
+          }
+          // Tenta entrar com a senha informada (recadastro após exclusão)
+          try{
+            var li=await sb.auth.signInWithPassword({email:email, password:pass});
+            if(!li.error && li.data && li.data.user){
+              cloudUser=li.data.user;
+              try{ await sb.auth.updateUser({ data:{ name:name, role:"client", login:login } }); }catch(e){}
+              cloudErr="";
+            } else {
+              // Senha diferente da antiga no Auth — libera cadastro local e avisa
+              cloudUser=null;
+              cloudErr="E-mail ainda no Auth com senha antiga. Conta local criada; se quiser nuvem, use a senha anterior ou outro e-mail.";
             }
-          }catch(e){}
-          try{
-            var regx=getClientsRegistrySafe().filter(function(c){ return String(c.login||"").toLowerCase()!==login; });
-            saveClientsRegistrySafe(regx);
-          }catch(e){}
-          return;
+          }catch(e){
+            cloudUser=null;
+            cloudErr="Auth: "+String(e.message||e);
+          }
+        } else {
+          cloudErr=res.error.message||"signup falhou";
         }
-        cloudErr=res.error.message||"signup falhou";
       } else if(res.data && res.data.user){
         cloudUser=res.data.user;
       }
@@ -6345,24 +6404,14 @@ async function adminDeleteClientDo(login, clientId){
       if(!cloudOk && delRes && delRes.error) console.warn("cloud delete", delRes.error);
     }catch(e){ console.warn("cloud delete", e); }
 
-    // 3) Tombstone na nuvem (status excluido) — garante que o app do cliente detecte e derrube a sessão
+    // 3) NÃO recria linha com o mesmo login/e-mail (isso impedia novo cadastro).
+    // A exclusão/renomeação acima já libera login e e-mail no banco.
+    // Sessão ativa do cliente cai porque a linha some / fica __del__.
     try{
-      if(login){
-        var tomb={
-          login:login,
-          name:"(excluído)",
-          email: targetEmail || (login.indexOf("@")>=0?login:(login.replace(/[^a-z0-9]/g,"")+"@excluido.local")),
-          status:"excluido",
-          temp_password:"",
-          paid:false
-        };
-        var insT=await clientsRest("POST","clients?on_conflict=login", tomb);
-        if(!(insT && insT.ok)){
-          await clientsRest("PATCH","clients?login=eq."+encodeURIComponent(login), {status:"excluido", temp_password:"", paid:false, name:"(excluído)"});
-        }
-        cloudOk=true;
-      }
-    }catch(e){ console.warn("tombstone", e); }
+      // garante mais uma passada de limpeza
+      if(login) await clientsRest("DELETE", "clients?login=eq."+encodeURIComponent(login));
+      if(targetEmail) await clientsRest("DELETE", "clients?email=eq."+encodeURIComponent(targetEmail));
+    }catch(e){}
 
     // 3) Limpa TUDO no aparelho do admin
     try{ purgeLocalAccountCompletely(login, targetEmail); }catch(e){
